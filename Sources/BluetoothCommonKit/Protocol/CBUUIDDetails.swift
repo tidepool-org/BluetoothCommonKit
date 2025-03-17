@@ -8,13 +8,13 @@
 
 import Foundation
 
-protocol CBUUIDDetails: CBUUIDRawValue {
+public protocol CBUUIDDetails: CBUUIDRawValue {
     var name: String { get }
     var properties: [CBUUIDProperties] { get }
     var procedureID: ProcedureID { get }
 }
 
-extension CBUUIDDetails {
+public extension CBUUIDDetails {
     var procedureID: ProcedureID {
         if self.properties.contains(.read) {
             return name + ".read"
@@ -28,7 +28,7 @@ extension CBUUIDDetails {
     }
 }
 
-enum CBUUIDProperties: String {
+public enum CBUUIDProperties: String {
     case read
     case indicate
     case notify

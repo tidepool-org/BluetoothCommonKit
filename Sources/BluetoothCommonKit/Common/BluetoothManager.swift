@@ -87,10 +87,14 @@ public class BluetoothManager: NSObject {
     /// Isolated to `managerQueue`
     private var centralManager: CBCentralManager!
     
-    var peripheralConfiguration: PeripheralManager.Configuration
+    public var peripheralConfiguration: PeripheralManager.Configuration {
+        didSet {
+            peripheralManager?.configuration = peripheralConfiguration
+        }
+    }
     
     var servicesToDiscover: [CBUUID]
-
+    
     /// Isolated to `managerQueue`
     private var peripheral: CBPeripheral? {
         get {
@@ -383,7 +387,7 @@ extension BluetoothManager: CBCentralManagerDelegate {
             delegate?.bluetoothManager(self, peripheralManager: peripheralManager, isReadyWithError: CBError(.peripheralDisconnected))
         }
 
-        if peripheralManager.willServiceSetChange {
+        if peripheralManager.configuration.willServiceSetChange {
             // when the service set changes, the peripheral identifier also changes and we need to scan for this.
             scanForPeripherals()
         } else {

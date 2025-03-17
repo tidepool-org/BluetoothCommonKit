@@ -6,7 +6,7 @@
 //  Copyright © 2025 Tidepool Project. All rights reserved.
 //
 
-extension Comparable {
+public extension Comparable {
     func clamped(to range: ClosedRange<Self>) -> Self {
         if self < range.lowerBound {
             return range.lowerBound
