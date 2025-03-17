@@ -64,13 +64,12 @@ public class SecurityManager {
         return delegate?.sharedKeyData != nil
     }
     
-    public convenience init(sharedKeyData: Data? = nil,
-                            sequenceNumber: UInt64 = 0) {
-        self.init()
+    public convenience init(sequenceNumber: UInt64 = 0) {
+        self.init(configuration: Configuration())
         self.configuration.sequenceNumber = sequenceNumber
     }
     
-    public init(configuration: Configuration = Configuration())
+    public init(configuration: Configuration)
     {
         self.lockedConfiguration = Locked(configuration)
         if !configuration.hasOOBRandomNumber && applicationSecurityEstablished {
