@@ -56,10 +56,6 @@ public class PeripheralManager: NSObject {
 
     var configuration: Configuration
 
-    var willServiceSetChange: Bool {
-        false
-    }
-
     // Confined to `queue`
     private var needsConfiguration = true
 
@@ -83,15 +79,30 @@ public class PeripheralManager: NSObject {
 
         assertConfiguration()
     }
+    
+    // ONLY FOR TESTING
+    override public init() {
+        self.configuration = Configuration(serviceCharacteristics: [ACCharacteristicUUID.service.cbUUID: [ACCharacteristicUUID.controlPoint.cbUUID]], notifyingCharacteristics: [ACCharacteristicUUID.service.cbUUID: [ACCharacteristicUUID.controlPoint.cbUUID]], valueUpdateMacros: [:])
+
+        super.init()
+    }
 }
 
 
 // MARK: - Nested types
-extension PeripheralManager {
-    public struct Configuration {
+public extension PeripheralManager {
+    struct Configuration {
         var serviceCharacteristics: [CBUUID: [CBUUID]] = [:]
         var notifyingCharacteristics: [CBUUID: [CBUUID]] = [:]
         var valueUpdateMacros: [CBUUID: (_ manager: PeripheralManager) -> Void] = [:]
+        var willServiceSetChange: Bool
+        
+        public init(serviceCharacteristics: [CBUUID : [CBUUID]], notifyingCharacteristics: [CBUUID : [CBUUID]], valueUpdateMacros: [CBUUID : (_: PeripheralManager) -> Void], willServiceSetChange: Bool = false) {
+            self.serviceCharacteristics = serviceCharacteristics
+            self.notifyingCharacteristics = notifyingCharacteristics
+            self.valueUpdateMacros = valueUpdateMacros
+            self.willServiceSetChange = willServiceSetChange
+        }
     }
 
     enum CommandCondition {
@@ -135,6 +146,8 @@ extension PeripheralManager {
 
             if self.needsConfiguration || self.peripheral?.services == nil {
                 do {
+                    try self.discoverServices()
+                    try self.delegate?.completeConfiguration(for: self)
                     try self.applyConfiguration()
                     self.log.default("Peripheral configuration completed")
                 } catch let error {
@@ -159,7 +172,7 @@ extension PeripheralManager {
         }
     }
 
-    func perform(_ block: @escaping (_ peripheralManager: PeripheralManager) -> Void) {
+    public func perform(_ block: @escaping (_ peripheralManager: PeripheralManager) -> Void) {
         queue.async(execute: configureAndRun(block))
     }
 
@@ -168,10 +181,12 @@ extension PeripheralManager {
             // Intentionally empty to trigger configuration if necessary
         }
     }
+    
+    private func discoverServices(discoveryTimeout: TimeInterval = 2) throws {
+        try discoverServices(configuration.serviceCharacteristics.keys.map { $0 }, timeout: discoveryTimeout)
+    }
 
     private func applyConfiguration(discoveryTimeout: TimeInterval = 2) throws {
-        try discoverServices(configuration.serviceCharacteristics.keys.map { $0 }, timeout: discoveryTimeout)
-
         for service in peripheral?.services ?? [] {
             guard let characteristics = configuration.serviceCharacteristics[service.uuid] else {
                 // Not all services may have characteristics
@@ -183,7 +198,7 @@ extension PeripheralManager {
 
         for (serviceUUID, characteristicUUIDs) in configuration.notifyingCharacteristics {
             guard let service = peripheral?.services?.itemWithUUID(serviceUUID) else {
-                throw PeripheralManagerError.unknownCharacteristic
+                throw PeripheralManagerError.unknownService
             }
 
             for characteristicUUID in characteristicUUIDs {
@@ -207,7 +222,7 @@ extension PeripheralManager {
 
 
 // MARK: - Synchronous Commands
-extension PeripheralManager {
+public extension PeripheralManager {
     /// - Throws: PeripheralManagerError
     func runCommand(timeout: TimeInterval, command: () -> Void) throws {
         // Prelude
@@ -254,7 +269,7 @@ extension PeripheralManager {
     /// It's illegal to call this without first acquiring the commandLock
     ///
     /// - Parameter condition: The condition to add
-    func addCondition(_ condition: CommandCondition) {
+    internal func addCondition(_ condition: CommandCondition) {
         dispatchPrecondition(condition: .onQueue(queue))
         commandConditions.append(condition)
     }
