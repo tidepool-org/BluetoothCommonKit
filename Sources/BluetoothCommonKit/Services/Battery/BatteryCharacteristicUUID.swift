@@ -15,16 +15,16 @@ public enum BatteryCharacteristicUUID: String, CBUUIDDetails {
     // Notify is currently not supported
     case batteryLevel = "2a19"
 
-    var name: String { "battery.level" }
+    public var name: String { "battery.level" }
 
-    var properties: [CBUUIDProperties] { [.read, .notify] }
+    public var properties: [CBUUIDProperties] { [.read, .notify] }
 
-    func toPercent(_ data: Data) -> Int {
+    public func toPercent(_ data: Data) -> Int {
         return Int(data[data.startIndex...].to(UInt8.self))
     }
 }
 
-extension CBPeripheral {
+public extension CBPeripheral {
     func getBatteryCharacteristicWithUUID(_ uuid: BatteryCharacteristicUUID, serviceUUID: BatteryCharacteristicUUID = .service) -> CBCharacteristic? {
         guard let service = services?.itemWithUUID(serviceUUID.cbUUID) else {
             return nil
@@ -34,7 +34,7 @@ extension CBPeripheral {
     }
 }
 
-extension PeripheralManager {
+public extension PeripheralManager {
     func readBatteryLevel(timeout: TimeInterval) throws -> Int {
         guard let characteristic = peripheral?.getBatteryCharacteristicWithUUID(.batteryLevel) else {
             throw PeripheralManagerError.unknownCharacteristic

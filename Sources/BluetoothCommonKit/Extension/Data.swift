@@ -8,7 +8,7 @@
 
 import Foundation
 
-extension Data {
+public extension Data {
     private func toDefaultEndian<T: FixedWidthInteger>(_: T.Type) -> T {
         return self.withUnsafeBytes({ (rawBufferPointer: UnsafeRawBufferPointer) -> T in
             let bufferPointer = rawBufferPointer.bindMemory(to: T.self)
@@ -62,7 +62,7 @@ extension Data {
 
 
 // String conversion methods, adapted from https://stackoverflow.com/questions/40276322/hex-binary-string-conversion-in-swift/40278391#40278391
-extension Data {
+public extension Data {
     init?(hexadecimalString: String) {
         self.init(capacity: hexadecimalString.utf16.count / 2)
 
@@ -112,7 +112,7 @@ extension Data {
  https://www.bluetooth.com/xml-viewer/?src=https://www.bluetooth.com/wp-content/uploads/Sitecore-Media-Library/Gatt/Xml/Services/org.bluetooth.service.insulin_delivery.xml
  
  */
-extension Collection where Element == UInt8 {
+public extension Collection where Element == UInt8 {
     private var crcCCITT: UInt16 {
         let seed: UInt16 = 0xffff
         let polynomial: UInt16 = 0x8408
@@ -143,13 +143,13 @@ extension Collection where Element == UInt8 {
     }
 }
 
-extension UInt8 {
+public extension UInt8 {
     var crc16: UInt16 {
         return [self].crc16
     }
 }
 
-extension Data {
+public extension Data {
     var isCRCValid: Bool {
         return dropLast(2).crc16 == suffix(2).toInt()
     }
@@ -171,16 +171,16 @@ extension Data {
     }
 }
 
-extension Data {
-  public init(hex: String) {
-    self.init(Array<UInt8>(hex: hex))
-  }
-
-  public var bytes: Array<UInt8> {
-    Array(self)
-  }
-
-  public func toHexString() -> String {
-    self.bytes.toHexString()
-  }
+public extension Data {
+    init(hex: String) {
+        self.init(Array<UInt8>(hex: hex))
+    }
+    
+    var bytes: Array<UInt8> {
+        Array(self)
+    }
+    
+    func toHexString() -> String {
+        self.bytes.toHexString()
+    }
 }

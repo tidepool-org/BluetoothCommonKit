@@ -9,13 +9,15 @@
 import Foundation
 import os.log
 
-class DeviceTime {
+public class DeviceTime {
     
     private let log = OSLog(category: "DeviceTime")
     
     var lockedRequestQueue: Locked<[(request: Data?, completion: Any?)]> = Locked([])
     
-    var hasRequestToSend: Bool {
+    public init() { }
+    
+    public var hasRequestToSend: Bool {
         nextRequestToSend()?.request != nil
     }
 
@@ -29,7 +31,7 @@ class DeviceTime {
         lockedRequestQueue.value.first
     }
     
-    func handleData(_ data: Data) -> (result: DeviceCommResult<Date?>, completion: Any?) {
+    public func handleData(_ data: Data) -> (result: DeviceCommResult<Date?>, completion: Any?) {
         guard data.count == 10 else {
             log.error("device time characteristic incorrect format.")
             return (.failure(.invalidFormat), nil)
@@ -72,7 +74,7 @@ class DeviceTime {
         return (.success(deviceTime), completion)
     }
     
-    func queueGetDateTimeRequest(completion: ProcedureTimeCompletion? = nil) {
+    public func queueGetDateTimeRequest(completion: ProcedureTimeCompletion? = nil) {
         lockedRequestQueue.mutate { requestQueue in
             requestQueue.append((nil, completion))
         }
@@ -80,17 +82,21 @@ class DeviceTime {
 }
 
 //MARK: - Option sets
-struct DTStatusFlag: OptionSet, Hashable, CustomStringConvertible {
-    let rawValue: UInt16
+public struct DTStatusFlag: OptionSet, Hashable, CustomStringConvertible, Sendable {
+    public let rawValue: UInt16
+    
+    public init(rawValue: UInt16) {
+        self.rawValue = rawValue
+    }
 
-    static let timeFault  = DTStatusFlag(rawValue: 1 << 0)
-    static let utcAligned = DTStatusFlag(rawValue: 1 << 1)
-    static let qualifiedLocalTimeSynchronized = DTStatusFlag(rawValue: 1 << 2)
-    static let proposeTimeUpdateRequest = DTStatusFlag(rawValue: 1 << 3)
-    static let epochYear2000 = DTStatusFlag(rawValue: 1 << 4)
-    static let nonLoggedTimeChangeActive = DTStatusFlag(rawValue: 1 << 5)
-    static let logConsolidationActive = DTStatusFlag(rawValue: 1 << 6)
-    static let allZeros = DTStatusFlag([])
+    public static let timeFault  = DTStatusFlag(rawValue: 1 << 0)
+    public static let utcAligned = DTStatusFlag(rawValue: 1 << 1)
+    public static let qualifiedLocalTimeSynchronized = DTStatusFlag(rawValue: 1 << 2)
+    public static let proposeTimeUpdateRequest = DTStatusFlag(rawValue: 1 << 3)
+    public static let epochYear2000 = DTStatusFlag(rawValue: 1 << 4)
+    public static let nonLoggedTimeChangeActive = DTStatusFlag(rawValue: 1 << 5)
+    public static let logConsolidationActive = DTStatusFlag(rawValue: 1 << 6)
+    public static let allZeros = DTStatusFlag([])
 
     static let debugDescriptions: [DTStatusFlag: String] = {
         var descriptions = [DTStatusFlag: String]()
