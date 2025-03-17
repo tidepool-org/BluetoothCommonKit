@@ -32,7 +32,7 @@ public extension PeripheralProtocol {
 
 extension CBPeripheral: PeripheralProtocol { }
 
-extension Collection where Element: CBAttribute {
+public extension Collection where Element: CBAttribute {
     func itemWithUUID(_ uuid: CBUUID) -> Element? {
         for attribute in self {
             if attribute.uuid == uuid {

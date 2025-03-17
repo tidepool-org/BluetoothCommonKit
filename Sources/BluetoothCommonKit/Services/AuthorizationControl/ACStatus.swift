@@ -9,10 +9,10 @@
 import Foundation
 import os.log
 
-private let log = OSLog(category: "AuthorizationControlStatus")
-
-struct ACStatus {
-    static func handleData(_ data: Data) -> (currentRestrictionMapID: Int, status: StatusFlag)? {
+public struct ACStatus {
+    static private let log = OSLog(category: "AuthorizationControlStatus")
+    
+    static public func handleData(_ data: Data) -> (currentRestrictionMapID: Int, status: StatusFlag)? {
         if (data.count != 3) {
             log.error("status charactersitic is an unexpected size: (expect 3, actual, %d", data.count)
             return nil
@@ -24,7 +24,7 @@ struct ACStatus {
     }
 }
 
-extension PeripheralManager {
+public extension PeripheralManager {
     func readACSStatus(timeout: TimeInterval) throws -> (currentRestrictionMapID: Int, status: StatusFlag) {
         guard let characteristic = peripheral?.getACSCharacteristicWithUUID(.status) else {
             throw PeripheralManagerError.unknownCharacteristic
@@ -46,8 +46,8 @@ extension PeripheralManager {
     }
 }
 
-struct StatusFlag: OptionSet, Hashable, CustomStringConvertible {
-    let rawValue: UInt8
+public struct StatusFlag: OptionSet, Hashable, CustomStringConvertible, Sendable {
+    public let rawValue: UInt8
     
     static let securityControlsEnabled  = StatusFlag(rawValue: 1 << 0)
     static let securityEstablished = StatusFlag(rawValue: 1 << 1)
@@ -59,6 +59,10 @@ struct StatusFlag: OptionSet, Hashable, CustomStringConvertible {
         descriptions[.securityEstablished] = "securityEstablished"
         return descriptions
     }()
+    
+    public init(rawValue: UInt8) {
+        self.rawValue = rawValue
+    }
     
     public var description: String {
         var result = [String]()

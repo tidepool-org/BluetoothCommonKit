@@ -8,9 +8,9 @@
 
 import Foundation
 
-typealias FLOAT = UInt32
+public typealias FLOAT = UInt32
 
-extension Data {
+public extension Data {
     func floatToDouble() -> Double {
         guard self.count == 4 else {
             fatalError("Float is a 32-bit value: \(self.toHexString())")
@@ -55,7 +55,7 @@ extension Data {
     }
 }
 
-enum FloatSpecialValue: FLOAT {
+public enum FloatSpecialValue: FLOAT {
     case zero = 0x00000000
     case infinityPostive = 0x007ffffe
     case nan = 0x007fffff
