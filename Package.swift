@@ -5,17 +5,23 @@ import PackageDescription
 
 let package = Package(
     name: "BluetoothCommonKit",
+    platforms: [.iOS("17.6")],
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.
         .library(
             name: "BluetoothCommonKit",
             targets: ["BluetoothCommonKit"]),
     ],
+    dependencies: [
+        .package(url: "git@github.com:krzyzanowskim/CryptoSwift.git", from: "1.8.3")
+    ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
         .target(
-            name: "BluetoothCommonKit"),
+            name: "BluetoothCommonKit",
+            dependencies: ["CryptoSwift"]
+            ),
         .testTarget(
             name: "BluetoothCommonKitTests",
             dependencies: ["BluetoothCommonKit"]
