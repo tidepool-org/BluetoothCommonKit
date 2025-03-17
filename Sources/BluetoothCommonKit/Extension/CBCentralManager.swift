@@ -9,7 +9,7 @@
 import CoreBluetooth
 
 // MARK: - It's only valid to call these methods on the central manager's queue
-extension CBCentralManager {
+public extension CBCentralManager {
     func connectIfNecessary(_ peripheral: CBPeripheral, options: [String: Any]? = nil) {
         guard case .poweredOn = state else {
             return
@@ -41,7 +41,7 @@ extension CBCentralManager {
     }
 }
 
-extension CBManagerState {
+public extension CBManagerState {
     var description: String {
         switch self {
         case .poweredOff:

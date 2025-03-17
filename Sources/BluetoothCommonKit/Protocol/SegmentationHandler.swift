@@ -8,7 +8,7 @@
 
 import Foundation
 
-protocol SegmentationHandler: AnyObject {
+public protocol SegmentationHandler: AnyObject {
     var maxRequestSize: Int { get }
     
     var storedResponses: [Data] { get set }
@@ -24,7 +24,7 @@ protocol SegmentationHandler: AnyObject {
     func resetSegmentCounter()
 }
 
-extension SegmentationHandler {
+public extension SegmentationHandler {
     var segmentCounter: UInt8 {
         get {
             return lockedSegmentCounter.value
@@ -109,7 +109,7 @@ extension SegmentationHandler {
         }
     }
 
-    public func resetSegmentCounter() {
+    func resetSegmentCounter() {
         segmentCounter = 0
     }
 }

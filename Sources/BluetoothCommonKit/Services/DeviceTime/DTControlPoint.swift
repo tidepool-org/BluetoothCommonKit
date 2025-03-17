@@ -13,12 +13,14 @@ public class DTControlPoint: ControlPoint {
 
     private let log = OSLog(category: "DTControlPoint")
 
-    var lockedRequestQueue: Locked<[(request: Data, completion: Any?)]> = Locked([])
+    public var lockedRequestQueue: Locked<[(request: Data, completion: Any?)]> = Locked([])
 
-    var procedureRunning: Bool = false
+    public var procedureRunning: Bool = false
+    
+    public init() { }
 
     //MARK: - Response Handling
-    func handleResponse(_ response: Data) -> (result: DeviceCommResult<Void>, completion: Any?) {
+    public func handleResponse(_ response: Data) -> (result: DeviceCommResult<Void>, completion: Any?) {
         guard response.isCRCPrefixValid else {
             return (.failure(.invalidCRC), nil)
         }
@@ -63,7 +65,7 @@ public class DTControlPoint: ControlPoint {
         }
     }
 
-    func procedureIDForResponse(_ response: Data) -> ProcedureID? {
+    public func procedureIDForResponse(_ response: Data) -> ProcedureID? {
         for opcode in DTControlPointOpcode.responseOpcodes {
             if isSpecificResponse(expectedOpcode: opcode, response: response) {
                 switch opcode {
@@ -85,7 +87,7 @@ public class DTControlPoint: ControlPoint {
         return nil
     }
 
-    func procedureIDForRequest(_ request: Data) -> ProcedureID {
+    public func procedureIDForRequest(_ request: Data) -> ProcedureID {
         guard let procedureID = DTControlPointOpcode(rawValue: request[request.startIndex.advanced(by: 2)...].to(DTControlPointOpcode.RawValue.self))?.procedureID else {
             fatalError("Opcode does not have a procedure ID \(request.toHexString())")
         }
@@ -124,7 +126,7 @@ public class DTControlPoint: ControlPoint {
         return request
     }
 
-    func createProposeTimeUpdateRequest(_ date: Date = Date(), using timeZone: TimeZone) -> Data? {
+    public func createProposeTimeUpdateRequest(_ date: Date = Date(), using timeZone: TimeZone) -> Data? {
         let timeUpdateFlags = TimeUpdateFlags([.epochYear2000, .utcAligned, .secondFractionsNotValid])
 
         // base time is the number of seconds from January 1, 2000 (Epoch 2000)
@@ -147,7 +149,7 @@ public class DTControlPoint: ControlPoint {
     }
 
     //MARK: - Queue Requests
-    func queueProposeTimeUpdateRequest(_ date: Date = Date(), using timeZone: TimeZone, completion: ProcedureResultCompletion? = nil) {
+    public func queueProposeTimeUpdateRequest(_ date: Date = Date(), using timeZone: TimeZone, completion: ProcedureResultCompletion? = nil) {
         guard let request = createProposeTimeUpdateRequest(date, using: timeZone) else { return }
         appendToRequestQueue(request, completion: completion)
     }
@@ -155,7 +157,7 @@ public class DTControlPoint: ControlPoint {
 
 //MARK: - Write Insulin Delivery Control Point Request
 extension PeripheralManager {
-    func writeDeviceTimeControlPointRequest(_ request: Data, type: CBCharacteristicWriteType = .withResponse, timeout: TimeInterval) throws {
+    public func writeDeviceTimeControlPointRequest(_ request: Data, type: CBCharacteristicWriteType = .withResponse, timeout: TimeInterval) throws {
         guard let characteristic = peripheral?.getDeviceTimetCharacteristicWithUUID(.controlPoint) else {
             throw PeripheralManagerError.unknownCharacteristic
         }
@@ -169,7 +171,7 @@ extension PeripheralManager {
 }
 
 //MARK: - Enumerations
-enum DTControlPointOpcode: UInt8, CaseIterable {
+public enum DTControlPointOpcode: UInt8, CaseIterable {
     case proposeTimeUpdate = 2
     case forceTimeUpdate = 3
     case proposeNonLoggedTimeAdjustmentLimit = 4
@@ -177,7 +179,7 @@ enum DTControlPointOpcode: UInt8, CaseIterable {
     case reportActiveTimeAdjustments = 7
     case responseCode = 9
 
-    var procedureID: ProcedureID {
+    public var procedureID: ProcedureID {
         String("DeviceTimeControlPoint.\(self.debugDescription)")
     }
 
@@ -208,7 +210,7 @@ enum DTControlPointOpcode: UInt8, CaseIterable {
     }
 }
 
-enum DTControlPointResponseCode: UInt8 {
+public enum DTControlPointResponseCode: UInt8 {
     case success = 1
     case opcodeNotSupported = 2
     case invalidOperand = 3
@@ -231,7 +233,7 @@ enum TimeAccuracy: UInt8 {
     case unknown = 255
 }
 
-enum DSTOffset: UInt8 {
+public enum DSTOffset: UInt8 {
     case standardTime = 0
     case daylightHalfHour = 2
     case daylight1Hour = 4
@@ -320,7 +322,7 @@ struct TimeUpdateFlags: OptionSet, Hashable, CustomStringConvertible {
     }
 }
 
-extension Date {
+public extension Date {
     static var epoch2000: Date {
         return Date(timeIntervalSince1970: 946684800) // Jan 1, 2000 00:00:00 GMT
     }
@@ -330,7 +332,7 @@ extension Date {
     }
 }
 
-extension TimeZone {
+public extension TimeZone {
     var dstOffset: DSTOffset {
         guard self.isDaylightSavingTime() else { return .standardTime }
 

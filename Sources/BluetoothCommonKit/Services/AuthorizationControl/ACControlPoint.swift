@@ -13,27 +13,25 @@ public class ACControlPoint: SegmentationHandler, ControlPoint {
     
     private let log = OSLog(category: "ACControlPoint")
     
-    private(set) var maxRequestSize: Int
+    private(set) public var maxRequestSize: Int
 
-    func updateMaxRequestSize(_ newValue: Int) {
+    public func updateMaxRequestSize(_ newValue: Int) {
         maxRequestSize = newValue
     }
 
-    var maxRequestSizeUpdatedHandler: ((Int) -> Void)?
+    public var maxRequestSizeUpdatedHandler: ((Int) -> Void)?
 
-    var certificateNonceHandler: ((Int) -> Void)?
+    public var certificateHandler: ((_ certificateNonce: Int) -> Void)?
     
-    var continueAuthenticationHandler: ((Result<Data, DeviceCommError>) -> Void)?
+    public var storedResponses: [Data] = []
     
-    var storedResponses: [Data] = []
-    
-    var lockedSegmentCounter: Locked<UInt8> = Locked(0)
+    public var lockedSegmentCounter: Locked<UInt8> = Locked(0)
 
-    var lockedRequestQueue: Locked<[(request: Data, completion: Any?)]> = Locked([])
+    public var lockedRequestQueue: Locked<[(request: Data, completion: Any?)]> = Locked([])
     
     public private(set) var uuidToHandleMap: [CBUUID: UInt16] = [:]
     
-    var procedureRunning: Bool = false
+    public var procedureRunning: Bool = false
     
     let securityManager: SecurityManager
     
@@ -43,7 +41,7 @@ public class ACControlPoint: SegmentationHandler, ControlPoint {
     }
     
     //MARK: - Authorization Control Control Point Responses
-    func handleSegmentedResponse(_ response: Data) -> (result: DeviceCommResult<Void>, completion: Any?) {
+    public func handleSegmentedResponse(_ response: Data) -> (result: DeviceCommResult<Void>, completion: Any?) {
         let result = checkResponseSegment(response)
         switch result {
         case .success(let completeResponse):
@@ -54,7 +52,7 @@ public class ACControlPoint: SegmentationHandler, ControlPoint {
         }
     }
 
-    func handleCompleteResponse(_ completeResponse: Data) -> (result: DeviceCommResult<Void>, completion: Any?) {
+    public func handleCompleteResponse(_ completeResponse: Data) -> (result: DeviceCommResult<Void>, completion: Any?) {
         // extract opcode
         guard let opcode = ACControlPointOpcode(rawValue: completeResponse[completeResponse.startIndex...].to(ACControlPointOpcode.RawValue.self)) else {
             return (.failure(.opcodeUnknown(completeResponse.hexadecimalString)), nil)
@@ -174,24 +172,13 @@ public class ACControlPoint: SegmentationHandler, ControlPoint {
             maxRequestSizeUpdatedHandler?(newMaxRequestSize)
             return (.success, completion)
         case .phdCertificateNonceResponse:
+            //TODO need to have a path to complete authentication without needing to get a certificate. Look at IOP ACS implementation to see how this works.
             let completion = completeProcedure(ACControlPointOpcode.getPHDCertificateNonce)
             guard completeResponse.count == 3 else {
                 return (.failure(.invalidFormat), completion)
             }
             let certificateNonce = Int(completeResponse[completeResponse.startIndex.advanced(by: 1)...].to(UInt16.self))
-            certificateNonceHandler?(certificateNonce)
-            
-            // TODO there should be no reference to wildcard or constrained. this behaviour should live at another level
-            
-            // TODO need to rethink this process for devices that may not need certificates
-            let certificateData = securityManager.delegate?.getCertificateData()
-            guard let certificateData = certificateData else {
-                log.error("Could not get the wildcard or constrained certificate")
-                continueAuthenticationHandler?(.failure(DeviceCommError.authenticationFailed))
-                return (.failure(.authenticationFailed), completion)
-            }
-            
-            continueAuthenticationHandler?(.success(certificateData))
+            certificateHandler?(certificateNonce)
             return (.success, completion)
         default:
             log.error("control point response not currently implemented")
@@ -220,7 +207,7 @@ public class ACControlPoint: SegmentationHandler, ControlPoint {
         return ACControlPoint.buildControlPointRequest(opcode: ACControlPointOpcode.keyExchangeECDHConfirmationRandomNumber, operand: operand)
     }
 
-    func queueStartKeyExchangeRequest(completion: ProcedureResultCompletion? = nil) {
+    public func queueStartKeyExchangeRequest(completion: ProcedureResultCompletion? = nil) {
         appendToRequestQueue(createStartKeyExchangeRequest(), completion: completion)
     }
 
@@ -259,7 +246,7 @@ extension ACControlPoint: RequestHandler {
         }
     }
 
-    func procedureIDForNextRequest() -> ProcedureID? {
+    public func procedureIDForNextRequest() -> ProcedureID? {
         guard let (request, _) = lockedRequestQueue.value.first,
               request.count >= 1
         else { return nil }
@@ -267,14 +254,18 @@ extension ACControlPoint: RequestHandler {
         return procedureIDForRequest(request)
     }
 
-    func procedureIDForRequest(_ request: Data) -> ProcedureID {
+    public func procedureIDForRequest(_ request: Data) -> ProcedureID {
         guard let procedureID = ACControlPointOpcode(rawValue: request[request.startIndex...].to(ACControlPointOpcode.RawValue.self))?.procedureID else {
             fatalError("Opcode does not have a procedure ID \(request.toHexString())")
         }
         return procedureID
     }
 
-    func procedureIDForResponse(_ response: Data) -> ProcedureID? {
+    public func procedureIDForResponse(_ response: Data, includesSegmentationHeader: Bool) -> ProcedureID? {
+        procedureIDForResponse(includesSegmentationHeader ? response.subdata(in: response.startIndex+1..<response.count) : response)
+    }
+        
+    public func procedureIDForResponse(_ response: Data) -> ProcedureID? {
         for opcode in ACControlPointOpcode.responseOpcodes {
             if isSpecificResponse(expectedOpcode: opcode, response: response) {
                 switch opcode {
@@ -367,11 +358,11 @@ extension ACControlPoint: RequestHandler {
         return true
     }
 
-    func queueInvalidateKeyRequest(completion: ProcedureResultCompletion? = nil) {
+    public func queueInvalidateKeyRequest(completion: ProcedureResultCompletion? = nil) {
         appendToRequestQueue(createInvalidateKeyRequest(), completion: completion)
     }
 
-    func queueKeyExchangeKDFRequest(completion: ProcedureResultCompletion? = nil) {
+    public func queueKeyExchangeKDFRequest(completion: ProcedureResultCompletion? = nil) {
         appendToRequestQueue(createKeyExchangeKDFRequest(), completion: completion)
     }
 
@@ -383,7 +374,7 @@ extension ACControlPoint: RequestHandler {
         appendToRequestQueue(createGetPHDCertificateNonceRequest(), completion: completion)
     }
     
-    func queueECDHPublicKeyRequest(certificateData: Data, completion: ProcedureResultCompletion? = nil) {
+    public func queueECDHPublicKeyRequest(certificateData: Data, completion: ProcedureResultCompletion? = nil) {
         appendToRequestQueue(createECDHPublicKeyRequest(certificateData: certificateData), completion: completion)
     }
 }
@@ -404,7 +395,7 @@ extension PeripheralManager {
 }
 
 //MARK: - Enumerations
-enum ACControlPointOpcode: UInt8, CaseIterable {
+public enum ACControlPointOpcode: UInt8, CaseIterable {
     case responseCode = 0x00
     case getAllActiveDescriptors = 0x01
     case getRestrictionMapDescriptor = 0x02
@@ -543,7 +534,7 @@ enum ACControlPointOpcode: UInt8, CaseIterable {
     }
 }
 
-enum ACControlPointResponseCode: UInt8 {
+public enum ACControlPointResponseCode: UInt8 {
     case success = 0x01
     case opcodeNotSupported = 0x02
     case invalidOperand = 0x03
