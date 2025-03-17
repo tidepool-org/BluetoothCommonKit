@@ -89,7 +89,7 @@ enum SFloatSpecialValue: SFLOAT {
     }
 }
 
-extension Double {
+public extension Double {
     // the returned value is in little endian
     var sfloat: Data {
         switch self {
@@ -113,7 +113,7 @@ extension Double {
 
 extension Data {
     // bytes are expected in little endian
-    func sfloatToDouble() -> Double {
+    public func sfloatToDouble() -> Double {
         guard self.count == 2 else {
             fatalError("SFloat is a 16-bit value: \(self.toHexString())")
         }
