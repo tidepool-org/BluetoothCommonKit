@@ -8,14 +8,14 @@
 
 import Foundation
 
-protocol E2EProtection: AnyObject {
+public protocol E2EProtection: AnyObject {
     var e2eCounter: UInt8 { get set }
     func incrementE2ECounter()
     func resetE2ECounter()
     func appendingE2EProtection(_ request: Data) -> Data
 }
 
-extension E2EProtection {
+public extension E2EProtection {
     func appendingE2EProtection(_ request: Data) -> Data {
         let e2eProtectedRequest = request.appendingE2ECounter(e2eCounter).appendingCRC()
         return e2eProtectedRequest
@@ -33,12 +33,12 @@ extension E2EProtection {
         e2eCounter = Self.e2eCounterInitalValue
     }
     
-    public static var e2eCounterInitalValue: UInt8 {
+    static var e2eCounterInitalValue: UInt8 {
         return 1
     }
 }
 
-extension Data {
+public extension Data {
     func appendingE2ECounter(_ e2eCounter: UInt8) -> Data {
         var data = self
         data.append(e2eCounter)

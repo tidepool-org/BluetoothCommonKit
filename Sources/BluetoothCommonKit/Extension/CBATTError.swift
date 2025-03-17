@@ -8,7 +8,7 @@
 
 import CoreBluetooth
 
-extension CBATTError {
+public extension CBATTError {
     static let e2eCounterCode = 0x82
     static let segmentCounterCode = 0x83
 
@@ -25,7 +25,7 @@ extension CBATTError {
     }
 }
 
-extension CBATTError.Code {
+public extension CBATTError.Code {
     static var e2eCounterCode: CBATTError.Code {
         CBATTError.Code(rawValue: 0x82)!
     }

@@ -19,9 +19,8 @@ public protocol SecurePersistentAuthentication {
     func getAuthenticationData(for keyService: String?) -> Data?
 }
 
-protocol SecurityManagerDelegate: AnyObject {
+public protocol SecurityManagerDelegate: AnyObject {
     var sharedKeyData: Data? { get set }
-    func getCertificateData() -> Data?
     func securityManagerDidEstablishedSecurity(_ securityManager: SecurityManager)
     func securityManagerDidUpdateConfiguration(_ securityManager: SecurityManager)
 }
@@ -34,7 +33,7 @@ public class SecurityManager {
         let nonceData: Data
     }
     
-    weak var delegate: SecurityManagerDelegate?
+    public weak var delegate: SecurityManagerDelegate?
     
     private let log = OSLog(category: "SecurityManager")
     
@@ -44,7 +43,7 @@ public class SecurityManager {
     
     private var lockedConfiguration: Locked<Configuration>
     
-    var configuration: Configuration {
+    public var configuration: Configuration {
         get {
             return lockedConfiguration.value
         }
@@ -60,7 +59,7 @@ public class SecurityManager {
     
     var keyConfirmationCodeServerLittleEndian: Data?
     
-    var applicationSecurityEstablished: Bool {
+    public var applicationSecurityEstablished: Bool {
         return delegate?.sharedKeyData != nil
     }
     
@@ -69,8 +68,7 @@ public class SecurityManager {
         self.configuration.sequenceNumber = sequenceNumber
     }
     
-    public init(configuration: Configuration)
-    {
+    public init(configuration: Configuration) {
         self.lockedConfiguration = Locked(configuration)
         if !configuration.hasOOBRandomNumber && applicationSecurityEstablished {
             // the stored key is invalid and needs to be deleted
@@ -78,7 +76,7 @@ public class SecurityManager {
         }
     }
     
-    func prepareForDeactivation() {
+    public func prepareForDeactivation() {
         deleteStoredKey()
     }
     
@@ -233,7 +231,7 @@ public class SecurityManager {
         let serverPublicKeyY = serverPublicKey.subdata(in: serverPublicKey.count/2..<serverPublicKey.count)
         return serverPublicKeyY
     }
-    
+
     //MARK: - ECDH and related confirmation
     public func calculateClientConfirmationCodeInLittleEndian() -> Data? {
         let message = clientRandomNumberData
@@ -306,7 +304,7 @@ public class SecurityManager {
         calculatedKeyConfirmationServer.reverse()
         
         return (calculatedKeyConfirmationServer, calculatedKeyConfirmationServer == keyConfirmationCodeServerLittleEndian)
-    }
+    }    
 }
 
 //MARK: - ECDH and related confirmation
@@ -481,7 +479,7 @@ extension SecurityManager {
             case version
         }
         
-        var oobRandomNumber: Data = Data()
+        public var oobRandomNumber: Data = Data()
         
         var ecdhKeyID: KeyID = 1
         
@@ -493,11 +491,11 @@ extension SecurityManager {
         
         var securityControls: [SecurityControlType] = [.nonce, .mac, .authenticatedEncryptedATTPacketWithAssociatedData]
         
-        var macSize = 8
+        public var macSize = 8
         
         var nonceType: NonceType = .sequenceNumberEvenOdd
         
-        var nonceSizeOctetsVariable = 8
+        public var nonceSizeOctetsVariable = 8
         
         var serverIVFixedField: Data = Data(UInt32(0xcafeaffe))
         
@@ -507,7 +505,7 @@ extension SecurityManager {
         
         var certificateDeviceIdentifier: CertificateDeviceIdentifier? = nil
         
-        mutating func resetSequenceNumber() {
+        public mutating func resetSequenceNumber() {
             sequenceNumber = 0
         }
         

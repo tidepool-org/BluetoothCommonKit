@@ -8,13 +8,13 @@
 
 import Foundation
 
-protocol RequestHandler {
+public protocol RequestHandler {
     static func buildControlPointRequest<O: RawRepresentable>(opcode: O, operand: Data?) -> Data where O.RawValue: FixedWidthInteger
 
     func responseOpcode<O: RawRepresentable>(_ response: Data) -> O? where O.RawValue: FixedWidthInteger
 }
 
-extension RequestHandler {
+public extension RequestHandler {
     static func buildControlPointRequest<O: RawRepresentable>(opcode: O, operand: Data? = nil) -> Data where O.RawValue: FixedWidthInteger {
         var request = Data(opcode.rawValue)
         

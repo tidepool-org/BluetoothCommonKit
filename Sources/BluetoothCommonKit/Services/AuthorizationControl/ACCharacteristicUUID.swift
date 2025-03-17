@@ -8,7 +8,7 @@
 
 import CoreBluetooth
 
-enum ACCharacteristicUUID: String, CBUUIDDetails {
+public enum ACCharacteristicUUID: String, CBUUIDDetails {
     case service = "183d"
 
     // Read, Indicate
@@ -28,7 +28,7 @@ enum ACCharacteristicUUID: String, CBUUIDDetails {
 
     var serviceName: String { "authorizationControl" }
 
-    var name: String {
+    public var name: String {
         switch self {
         case .service: return serviceName
         case .status: return serviceName + ".status"
@@ -39,7 +39,7 @@ enum ACCharacteristicUUID: String, CBUUIDDetails {
         }
     }
 
-    var properties: [CBUUIDProperties] {
+    public var properties: [CBUUIDProperties] {
         switch self {
         case .service: return []
         case .status: return [.read, .indicate]
@@ -51,8 +51,7 @@ enum ACCharacteristicUUID: String, CBUUIDDetails {
     }
 }
 
-
-extension CBPeripheral {
+public extension CBPeripheral {
     func getACSCharacteristicWithUUID(_ uuid: ACCharacteristicUUID, serviceUUID: ACCharacteristicUUID = .service) -> CBCharacteristic? {
         guard let service = services?.itemWithUUID(serviceUUID.cbUUID) else {
             return nil

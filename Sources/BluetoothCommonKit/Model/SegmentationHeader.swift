@@ -8,8 +8,12 @@
 
 import Foundation
 
-struct SegmentationHeader: OptionSet, Hashable, CustomStringConvertible {
-    let rawValue: UInt8
+public struct SegmentationHeader: OptionSet, Hashable, CustomStringConvertible, Sendable {
+    public let rawValue: UInt8
+    
+    public init(rawValue: UInt8) {
+        self.rawValue = rawValue
+    }
     
     static let firstPart = SegmentationHeader(rawValue: 1 << 0)
     static let lastPart = SegmentationHeader(rawValue: 1 << 1)
