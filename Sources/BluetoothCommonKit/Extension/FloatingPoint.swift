@@ -11,7 +11,7 @@
 
 import Foundation
 
-extension FloatingPoint {
+public extension FloatingPoint {
     var roundedToTenths: Self {
         return (self * 10).rounded() / 10
     }

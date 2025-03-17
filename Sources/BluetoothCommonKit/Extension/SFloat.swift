@@ -8,9 +8,9 @@
 
 import Foundation
 
-typealias SFLOAT = UInt16
+public typealias SFLOAT = UInt16
 
-extension FixedWidthInteger {
+public extension FixedWidthInteger {
     // the returned value is in little endian
     var sfloat: Data {
         return toSFloat(initialExponent: 0)
@@ -68,7 +68,7 @@ extension FixedWidthInteger {
     }
 }
 
-enum SFloatSpecialValue: SFLOAT {
+public enum SFloatSpecialValue: SFLOAT {
     case zero = 0x0000
     case infinityPostive = 0x07fe
     case nan = 0x07ff
@@ -89,7 +89,7 @@ enum SFloatSpecialValue: SFLOAT {
     }
 }
 
-extension Double {
+public extension Double {
     // the returned value is in little endian
     var sfloat: Data {
         switch self {
@@ -111,7 +111,7 @@ extension Double {
     }
 }
 
-extension Data {
+public extension Data {
     // bytes are expected in little endian
     func sfloatToDouble() -> Double {
         guard self.count == 2 else {

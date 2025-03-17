@@ -8,16 +8,17 @@
 
 import CoreBluetooth
 
-enum PeripheralManagerError: Error {
+public enum PeripheralManagerError: Error {
     case cbPeripheralError(Error)
     case notReady
     case timeout
     case unknownCharacteristic
+    case unknownService
     case invalidResponse(Data)
 }
 
 extension PeripheralManagerError: LocalizedError {
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .cbPeripheralError(let error):
             return error.localizedDescription
@@ -26,13 +27,15 @@ extension PeripheralManagerError: LocalizedError {
         case .timeout:
             return LocalizedString("Peripheral did not respond in time", comment: "Timeout error description")
         case .unknownCharacteristic:
-            return LocalizedString("Unknown characteristic", comment: "Error description")
+            return LocalizedString("Unknown characteristic", comment: "Error description for unknown characteristic")
+        case .unknownService:
+            return LocalizedString("Unknown service", comment: "Error description for unknown service")
         case .invalidResponse(let data):
             return String(format: LocalizedString("Invalid response %@", comment: "Invalid response description (1: data as hexidecimal)"), data.hexadecimalString)
         }
     }
 
-    var failureReason: String? {
+    public var failureReason: String? {
         switch self {
         case .cbPeripheralError(let error as NSError):
             return error.localizedFailureReason
