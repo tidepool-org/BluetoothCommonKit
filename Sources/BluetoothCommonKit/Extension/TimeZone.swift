@@ -8,7 +8,7 @@
 
 import Foundation
 
-extension TimeZone {
+public extension TimeZone {
     static var currentFixed: TimeZone {
         TimeZone(secondsFromGMT: TimeZone.current.secondsFromGMT())!
     }
