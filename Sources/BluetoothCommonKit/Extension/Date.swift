@@ -8,7 +8,7 @@
 
 import Foundation
 
-extension Date {
+public extension Date {
     // The GATT Date Time field is always in UTC, but a prototype may consider it a wall clock time
     func gattDateTime(using timeZone: TimeZone = TimeZone.utc) -> Data {
         var currentCalendar = Calendar.current
