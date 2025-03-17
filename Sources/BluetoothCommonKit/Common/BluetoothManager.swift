@@ -87,9 +87,15 @@ public class BluetoothManager: NSObject {
     /// Isolated to `managerQueue`
     private var centralManager: CBCentralManager!
     
-    var peripheralConfiguration: PeripheralManager.Configuration
+    public var peripheralConfiguration: PeripheralManager.Configuration {
+        didSet {
+            peripheralManager?.configuration = peripheralConfiguration
+        }
+    }
     
     var servicesToDiscover: [CBUUID]
+    
+    public var willServiceSetChange: Bool
 
     /// Isolated to `managerQueue`
     private var peripheral: CBPeripheral? {
@@ -145,11 +151,13 @@ public class BluetoothManager: NSObject {
     
     public init(peripheralIdentifier: UUID? = nil,
                 peripheralConfiguration: PeripheralManager.Configuration,
+                willServiceSetChange: Bool = false,
                 servicesToDiscover: [CBUUID],
                 restoreOptions: [String: Any]? = [CBCentralManagerOptionRestoreIdentifierKey: "org.tidepool.BluetoothCommonKit"])
     {
         self.lockedPeripheralIdentifier = Locked(peripheralIdentifier)
         self.peripheralConfiguration = peripheralConfiguration
+        self.willServiceSetChange = willServiceSetChange
         self.servicesToDiscover = servicesToDiscover
         super.init()
 
@@ -383,7 +391,7 @@ extension BluetoothManager: CBCentralManagerDelegate {
             delegate?.bluetoothManager(self, peripheralManager: peripheralManager, isReadyWithError: CBError(.peripheralDisconnected))
         }
 
-        if peripheralManager.willServiceSetChange {
+        if willServiceSetChange {
             // when the service set changes, the peripheral identifier also changes and we need to scan for this.
             scanForPeripherals()
         } else {

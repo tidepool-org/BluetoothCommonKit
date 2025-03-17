@@ -26,7 +26,7 @@ public enum DeviceTimeCharacteristicUUID: String, CBUUIDDetails {
 
     var serviceName: String { "deviceTime"}
 
-    var name: String {
+    public var name: String {
         switch self {
         case .service: return serviceName + ".deviceTimeService"
         case .feature: return serviceName + ".feature"
@@ -36,7 +36,7 @@ public enum DeviceTimeCharacteristicUUID: String, CBUUIDDetails {
         }
     }
 
-    var properties: [CBUUIDProperties] {
+    public var properties: [CBUUIDProperties] {
         switch self {
         case .service:
             return []
@@ -50,7 +50,7 @@ public enum DeviceTimeCharacteristicUUID: String, CBUUIDDetails {
     }
 }
 
-extension CBPeripheral {
+public extension CBPeripheral {
     func getDeviceTimetCharacteristicWithUUID(_ uuid: DeviceTimeCharacteristicUUID, serviceUUID: DeviceTimeCharacteristicUUID = .service) -> CBCharacteristic? {
         guard let service = services?.itemWithUUID(serviceUUID.cbUUID) else {
             return nil

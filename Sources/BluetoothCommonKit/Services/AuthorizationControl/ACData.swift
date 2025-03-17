@@ -22,25 +22,25 @@ public class ACData: SegmentationHandler {
     
     public weak var delegate: ACDataDelegate?
     
-    private(set) var maxRequestSize: Int
+    private(set) public var maxRequestSize: Int
 
-    func updateMaxRequestSize(_ newValue: Int) {
+    public func updateMaxRequestSize(_ newValue: Int) {
         maxRequestSize = newValue
     }
     
-    var storedResponses: [Data] = []
+    public var storedResponses: [Data] = []
     
-    var lockedSegmentCounter: Locked<UInt8> = Locked(0)
+    public var lockedSegmentCounter: Locked<UInt8> = Locked(0)
     
     public init(securityManager: SecurityManager, maxRequestSize: Int) {
         self.securityManager = securityManager
         self.maxRequestSize = maxRequestSize
     }
     
-    func sendRequest(_ request: Data?,
-                     resourceHandle: ResourceHandle,
-                     peripherialManager: PeripheralManager,
-                     timeout: TimeInterval) -> DeviceCommResult<Void>
+    public func sendRequest(_ request: Data?,
+                            resourceHandle: ResourceHandle,
+                            peripherialManager: PeripheralManager,
+                            timeout: TimeInterval) -> DeviceCommResult<Void>
     {
         let result = prepareSecureRequestSegments(request, resourceHandle: resourceHandle)
         switch result {
@@ -100,7 +100,7 @@ public class ACData: SegmentationHandler {
         }
     }
     
-    func handleSecureResponse(_ secureResponse: Data) -> Result<ResourceResponse, DeviceCommError> {
+    public func handleSecureResponse(_ secureResponse: Data) -> Result<ResourceResponse, DeviceCommError> {
         let result = checkResponseSegment(secureResponse)
         switch result {
         case .success(let completeSecureResponse):
