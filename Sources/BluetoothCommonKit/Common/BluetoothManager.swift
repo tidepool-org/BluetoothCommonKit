@@ -87,7 +87,11 @@ public class BluetoothManager: NSObject {
     /// Isolated to `managerQueue`
     private var centralManager: CBCentralManager!
     
-    var peripheralConfiguration: PeripheralManager.Configuration
+    public var peripheralConfiguration: PeripheralManager.Configuration {
+        didSet {
+            peripheralManager?.configuration = peripheralConfiguration
+        }
+    }
     
     var servicesToDiscover: [CBUUID]
 

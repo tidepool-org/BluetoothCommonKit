@@ -8,9 +8,9 @@
 
 import Foundation
 
-typealias ResourceHandle = UInt16
+public typealias ResourceHandle = UInt16
 
-struct ResourceResponse {
-    let resourceHandle: ResourceHandle
-    let response: Data
+public struct ResourceResponse {
+    public let resourceHandle: ResourceHandle
+    public let response: Data
 }
