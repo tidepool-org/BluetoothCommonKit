@@ -12,10 +12,6 @@ import Foundation
 class SecurityManagerTestingDelegate: SecurityManagerDelegate {
     var sharedKeyData: Data? = nil
     
-    func getCertificateData() -> Data? {
-        return nil
-    }
-    
     func securityManagerDidEstablishedSecurity(_ securityManager: BluetoothCommonKit.SecurityManager) { }
     
     func securityManagerDidUpdateConfiguration(_ securityManager: BluetoothCommonKit.SecurityManager) { }
