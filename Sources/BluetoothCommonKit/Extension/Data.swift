@@ -19,7 +19,7 @@ extension Data {
         })
     }
 
-    func to<T: FixedWidthInteger>(_ type: T.Type) -> T {
+    public func to<T: FixedWidthInteger>(_ type: T.Type) -> T {
         return T(littleEndian: toDefaultEndian(type))
     }
 
