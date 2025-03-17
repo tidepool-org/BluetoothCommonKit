@@ -16,7 +16,8 @@ import UIKit
 // TODO consider how this will work with CGM and IDS services both being used.
 
 public protocol BluetoothManagerDelegate: AnyObject {
-
+    func canUpdatePeripheralConfiguration(_ manager: BluetoothManager, peripheralManager: PeripheralManager)
+    
     /**
      Tells the delegate that the bluetooth manager has finished connecting to and discovering all required services and characteristics of its peripheral, or that it failed to do so
 
@@ -87,10 +88,14 @@ public class BluetoothManager: NSObject {
     /// Isolated to `managerQueue`
     private var centralManager: CBCentralManager!
     
-    var peripheralConfiguration: PeripheralManager.Configuration
+    public var peripheralConfiguration: PeripheralManager.Configuration {
+        didSet {
+            peripheralManager?.configuration = peripheralConfiguration
+        }
+    }
     
     var servicesToDiscover: [CBUUID]
-
+    
     /// Isolated to `managerQueue`
     private var peripheral: CBPeripheral? {
         get {
@@ -383,7 +388,7 @@ extension BluetoothManager: CBCentralManagerDelegate {
             delegate?.bluetoothManager(self, peripheralManager: peripheralManager, isReadyWithError: CBError(.peripheralDisconnected))
         }
 
-        if peripheralManager.willServiceSetChange {
+        if peripheralManager.configuration.willServiceSetChange {
             // when the service set changes, the peripheral identifier also changes and we need to scan for this.
             scanForPeripherals()
         } else {
@@ -414,6 +419,7 @@ extension BluetoothManager: PeripheralManagerDelegate {
     func completeConfiguration(for peripheralManager: PeripheralManager) throws {
         // delegate can further configure the peripheralManager, if needed.
         log.debug("%{public}@ %{public}@", #function, peripheralManager)
+        delegate?.canUpdatePeripheralConfiguration(self, peripheralManager: peripheralManager)
     }
     
     func didCompleteConfiguration(_ peripheralManager: PeripheralManager) {

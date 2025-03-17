@@ -6,7 +6,7 @@
 //  Copyright © 2025 Tidepool Project. All rights reserved.
 //
 
-extension Array {
+public extension Array {
     @inlinable
     init(reserveCapacity: Int) {
         self = Array<Element>()
@@ -24,7 +24,7 @@ extension Array {
     }
 }
 
-extension Array where Element == UInt8 {
+public extension Array where Element == UInt8 {
     public init(hex: String) {
         self.init(reserveCapacity: hex.unicodeScalars.lazy.underestimatedCount)
         var buffer: UInt8?
@@ -74,7 +74,7 @@ extension Array where Element == UInt8 {
     }
 }
 
-extension Array {
+public extension Array {
     func chunked(into chunkSize: Int) -> [[Element]] {
         return stride(from: 0, to: count, by: chunkSize).map {
             Array(self[$0..<Swift.min($0 + chunkSize, count)])
@@ -82,13 +82,13 @@ extension Array {
     }
 }
 
-extension Collection {
+public extension Collection {
     subscript (safe index: Index) -> Element? {
         return indices.contains(index) ? self[index] : nil
     }
 }
 
-extension Array {
+public extension Array {
     func makeInfiniteLoopIterator() -> AnyIterator<Element> {
         var index = self.startIndex
 
