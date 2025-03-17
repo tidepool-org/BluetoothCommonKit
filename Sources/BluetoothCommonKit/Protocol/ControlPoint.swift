@@ -8,7 +8,7 @@
 
 import Foundation
 
-protocol ControlPoint: AnyObject, RequestHandler {
+public protocol ControlPoint: AnyObject, RequestHandler {
     /// an array of commands to send and completion handlers
     var lockedRequestQueue: Locked<[(request: Data, completion: Any?)]> { get set }
 
@@ -27,7 +27,7 @@ protocol ControlPoint: AnyObject, RequestHandler {
     func nextRequestToSend() -> (Data, Any?)?
 }
 
-extension ControlPoint {
+public extension ControlPoint {
     func appendToRequestQueue(_ request: Data, completion: Any?) {
         lockedRequestQueue.mutate { requestQueue in
             requestQueue.append((request, completion))
@@ -48,7 +48,7 @@ extension ControlPoint {
         return pendingProcedures
     }
 
-    public func currentProcedureOpcode<O: RawRepresentable>() -> O? where O.RawValue: FixedWidthInteger {
+    func currentProcedureOpcode<O: RawRepresentable>() -> O? where O.RawValue: FixedWidthInteger {
         guard procedureRunning else { return nil }
 
         guard let currentRequest = lockedRequestQueue.value.first?.request,
@@ -58,11 +58,11 @@ extension ControlPoint {
         return O(rawValue: currentRequest[currentRequest.startIndex...].to(O.RawValue.self))
     }
     
-    public func nextRequestToSend() -> (Data, Any?)? {
+    func nextRequestToSend() -> (Data, Any?)? {
         lockedRequestQueue.value.first
     }
     
-    public func completeProcedure<O: RawRepresentable>(_ opcode: O) -> Any? where O.RawValue: FixedWidthInteger {
+    func completeProcedure<O: RawRepresentable>(_ opcode: O) -> Any? where O.RawValue: FixedWidthInteger {
         var completionToReturn: Any? = nil
         lockedRequestQueue.mutate { requestQueue in
             if let (currentRequest, completion) = requestQueue.first,
@@ -77,7 +77,7 @@ extension ControlPoint {
         return completionToReturn
     }
     
-    public func isExpectedRequest<O: RawRepresentable>(_ request: Data, expectedOpcode: O) -> Bool where O.RawValue: FixedWidthInteger {
+    func isExpectedRequest<O: RawRepresentable>(_ request: Data, expectedOpcode: O) -> Bool where O.RawValue: FixedWidthInteger {
         guard request.count >= Data(expectedOpcode.rawValue).count else {
             return false
         }

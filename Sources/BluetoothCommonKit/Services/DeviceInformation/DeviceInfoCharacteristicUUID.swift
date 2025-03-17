@@ -41,7 +41,7 @@ public enum DeviceInfoCharacteristicUUID: String, CBUUIDDetails {
 
     var serviceName: String { "deviceInformation"}
 
-    var name: String {
+    public var name: String {
         switch self {
         case .service: return serviceName
         case .manufacturerNameString: return serviceName + ".manufacturerNameString"
@@ -56,9 +56,9 @@ public enum DeviceInfoCharacteristicUUID: String, CBUUIDDetails {
         }
     }
 
-    var properties: [CBUUIDProperties] { [.read] }
+    public var properties: [CBUUIDProperties] { [.read] }
     
-    func toString(_ data: Data) -> String? {
+    public func toString(_ data: Data) -> String? {
         switch self {
         case .manufacturerNameString, .modelNumberString, .serialNumberString, .hardwareRevisionString, .firmwareRevisionString, .softwareRevisionString:
             return String(bytes: data, encoding: .utf8)
@@ -68,7 +68,7 @@ public enum DeviceInfoCharacteristicUUID: String, CBUUIDDetails {
     }
 }
 
-extension CBPeripheral {
+public extension CBPeripheral {
     func getDISCharacteristicWithUUID(_ uuid: DeviceInfoCharacteristicUUID, serviceUUID: DeviceInfoCharacteristicUUID = .service) -> CBCharacteristic? {
         guard let service = services?.itemWithUUID(serviceUUID.cbUUID) else {
             return nil
@@ -78,7 +78,7 @@ extension CBPeripheral {
     }
 }
 
-extension PeripheralManager {
+public extension PeripheralManager {
     func readCharacteristicStringValue(_ characteristic: CBCharacteristic, timeout: TimeInterval) throws -> String {
         do {
             guard let characteristicData = try readValue(for: characteristic, timeout: timeout) else {

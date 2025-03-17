@@ -14,7 +14,7 @@ public typealias ProcedureCompletion<T> = (DeviceCommResult<T>) -> Void
 public typealias ProcedureResultCompletion = ProcedureCompletion<Void>
 public typealias ProcedureTimeCompletion = ProcedureCompletion<Date>
 
-extension DeviceCommResult where Success == Void {
+public extension DeviceCommResult where Success == Void {
     static var success: Self { .success(()) }
 }
 
@@ -24,6 +24,7 @@ public enum DeviceCommError: Equatable {
     case commandFailed(String)
     case connectionTimeout
     case disconnected
+    case deviceAlreadyPaired
     case deviceNotReady
     case invalidCRC
     case invalidFormat
@@ -64,6 +65,8 @@ extension DeviceCommError: LocalizedError {
             return LocalizedString("The connection has timed out.\n\nCheck whether the device is too far away and try again.", comment: "Error description when the procedure times out")
         case .disconnected:
             return LocalizedString("A connection could not be established.\n\nCheck whether the device is too far away and try again.", comment: "Error description when the is not connected")
+        case .deviceAlreadyPaired:
+            return LocalizedString("This device appears to already have been used and a connection cannot be established.", comment: "Error description when a device has already been paired")
         case .deviceNotReady:
             return LocalizedString("The setup was interrupted. Complete the setup to make settings changes.", comment: "Error description when the device is not configured")
         case .invalidCRC:
