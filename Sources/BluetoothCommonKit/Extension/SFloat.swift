@@ -8,7 +8,7 @@
 
 import Foundation
 
-typealias SFLOAT = UInt16
+public typealias SFLOAT = UInt16
 
 extension FixedWidthInteger {
     // the returned value is in little endian

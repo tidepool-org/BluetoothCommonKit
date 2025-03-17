@@ -62,7 +62,7 @@ extension Data {
 
 
 // String conversion methods, adapted from https://stackoverflow.com/questions/40276322/hex-binary-string-conversion-in-swift/40278391#40278391
-extension Data {
+public extension Data {
     init?(hexadecimalString: String) {
         self.init(capacity: hexadecimalString.utf16.count / 2)
 
