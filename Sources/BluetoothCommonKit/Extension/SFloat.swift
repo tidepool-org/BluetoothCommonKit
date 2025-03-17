@@ -10,7 +10,7 @@ import Foundation
 
 public typealias SFLOAT = UInt16
 
-extension FixedWidthInteger {
+public extension FixedWidthInteger {
     // the returned value is in little endian
     var sfloat: Data {
         return toSFloat(initialExponent: 0)
@@ -111,9 +111,9 @@ public extension Double {
     }
 }
 
-extension Data {
+public extension Data {
     // bytes are expected in little endian
-    public func sfloatToDouble() -> Double {
+    func sfloatToDouble() -> Double {
         guard self.count == 2 else {
             fatalError("SFloat is a 16-bit value: \(self.toHexString())")
         }
