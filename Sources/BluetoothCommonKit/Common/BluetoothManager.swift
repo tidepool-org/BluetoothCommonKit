@@ -11,11 +11,13 @@ import Foundation
 import os.log
 import UIKit
 
-// TODO consider fixed and float point for amount parsing
-// TODO pass in the services and configuration. no hardcoding
-// TODO consider how this will work with CGM and IDS services both being used.
-
 public protocol BluetoothManagerDelegate: AnyObject {
+    /**
+     Tells the delegate that the peripheral manager service configuration can be updated before applying the configuration
+
+     - parameter manager: The bluetooth manager
+     - parameter peripheralManager: The peripheral manager
+     */
     func updatePeripheralConfigurationIfNeeded(_ manager: BluetoothManager, peripheralManager: PeripheralManager)
     
     /**

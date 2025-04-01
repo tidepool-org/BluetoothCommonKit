@@ -90,7 +90,6 @@ class DataTests: XCTestCase {
         let crc1 = data1.crc16
         XCTAssertEqual(crc1, expectedCRC1)
         
-        // test vector from solo pump
         // data with CRC = (0x) 78-22-E4-07-03-15-0E-07-03-00-00-01-AB-41
         // CRC = 16811 = 0x41ab
         let data2 = Data(hex:"7822e40703150e0703000001")
@@ -106,7 +105,6 @@ class DataTests: XCTestCase {
         let dataWithCRC1 = Data(hex:"3e010203040506070809012f")
         XCTAssertTrue(dataWithCRC1.isCRCValid)
         
-        // test vector from solo pump
         // data with CRC = (0x) 78-22-E4-07-03-15-0E-07-03-00-00-01-AB-41
         // CRC = 16811 = 0x41ab
         let dataWithCRC2 = Data(hex:"7822e40703150e0703000001ab41")
@@ -121,7 +119,6 @@ class DataTests: XCTestCase {
         let expectedData1 = Data(hex:"3e010203040506070809012f")
         XCTAssertEqual(data1.appendingCRC(), expectedData1)
         
-        // test vector from solo pump
         // data with CRC = (0x) 78-22-E4-07-03-15-0E-07-03-00-00-01-AB-41
         // CRC = 16811 = 0x41ab
         let data2 = Data(hex:"7822e40703150e0703000001")

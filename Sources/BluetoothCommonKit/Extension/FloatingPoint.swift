@@ -6,9 +6,6 @@
 //  Copyright © 2025 Tidepool Project. All rights reserved.
 //
 
-// TODO clean up errors
-// TODO add tests
-
 import Foundation
 
 public extension FloatingPoint {

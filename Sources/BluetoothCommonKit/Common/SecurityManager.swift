@@ -6,11 +6,8 @@
 //  Copyright © 2025 Tidepool Project. All rights reserved.
 //
 
-// TODO should the security manager be added in the package or in the IDS pump manager?
-
 import Foundation
 import CryptoKit
-// TODO should this be removed?
 import CryptoSwift
 import os.log
 
@@ -435,7 +432,6 @@ extension SecurityManager {
         }
     }
     
-    // TODO check to see if that additional library is need
     func decrypt(ciphertext: Data, associateData: Data = Data(), keyData: Data, nonceData: Data, mac: Data) -> Result<Data, SecurityManagerError> {
         do {
             // In combined mode, the authentication tag is appended to the encrypted message. This is usually what you want.

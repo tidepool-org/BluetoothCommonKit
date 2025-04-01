@@ -172,7 +172,6 @@ public class ACControlPoint: SegmentationHandler, ControlPoint {
             maxRequestSizeUpdatedHandler?(newMaxRequestSize)
             return (.success, completion)
         case .phdCertificateNonceResponse:
-            //TODO need to have a path to complete authentication without needing to get a certificate. Look at IOP ACS implementation to see how this works.
             let completion = completeProcedure(ACControlPointOpcode.getPHDCertificateNonce)
             guard completeResponse.count == 3 else {
                 return (.failure(.invalidFormat), completion)
