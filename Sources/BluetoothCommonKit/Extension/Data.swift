@@ -170,3 +170,18 @@ public extension Data {
         return data
     }
 }
+
+extension Data {
+    public var binaryString : NSString {
+        
+        var bytes = [UInt8](repeating: 0, count: count)
+        copyBytes(to: &bytes, count: count)
+        
+        let binString = NSMutableString()
+        for byte in bytes {
+            binString.appendFormat(String(UInt(byte), radix: 2) as NSString)
+        }
+        
+        return NSString(string: binString)
+    }
+}

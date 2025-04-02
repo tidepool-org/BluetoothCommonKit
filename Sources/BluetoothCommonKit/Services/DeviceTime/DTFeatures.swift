@@ -7,28 +7,67 @@
 //
 
 import Foundation
+import CoreBluetooth
 import os.log
 
-private let log = OSLog(category: "DTFeatures")
+// MARK: - Support Server Implementation
+public class DTFeaturesCharacteristic: E2EProtection {
+    public var e2eCounter: UInt8 = 0
+    public weak var e2eDelegate: E2EProtectionDelegate?
+    
+    var messageQueue: MessagingQueue
 
-struct DTFeatures {
+    public init(messageQueue: MessagingQueue) {
+        self.messageQueue = messageQueue
+    }
+    
+    public func createData() -> Data {
+        var flags: DTFeatureFlag = [.supportedEpochYear2000]
+        if e2eDelegate?.isE2EProtectionSupported ?? false {
+            flags.insert(.supportedE2ECRC)
+        }
+        
+        var characteristicValue = Data(flags.rawValue)
+        
+        if e2eDelegate?.isE2EProtectionSupported ?? false {
+            characteristicValue = characteristicValue.appendingCRCPrefix()
+        } else {
+            characteristicValue.insert(contentsOf: Data(UInt16(0xffff)), at: 0)
+        }
+
+        ConsoleOut.shared.logMessage(message: "\(#function) Device Time Feature characteristic value: \(characteristicValue.hexadecimalString)")
+        
+        return characteristicValue
+    }
+
+    public func onRead() -> (CBATTError.Code, Data) {
+        ConsoleOut.shared.logMessage(message: "\(#function): reading Device Time Feature characteristic")
+        return (CBATTError.Code.success, self.createData())
+    }
+}
+
+// MARK: - Support Client Implementation
+struct DTFeaturesDataHandler {
+    static private let log = OSLog(category: "DTFeatures")
+    
     static func handleData(_ data: Data) -> DeviceCommResult<DTFeatureFlag> {
         guard data.count == 4 else {
             log.error("device time feature characteristic incorrect format.")
             return .failure(.invalidFormat)
         }
 
-        guard data.isCRCPrefixValid else {
-            log.error("device time feature CRC is invalid.")
-            return .failure(.invalidCRC)
-        }
-
         var index = 2 // skip CRC
         let flags = DTFeatureFlag(rawValue: data[data.startIndex.advanced(by: index)...].to(DTFeatureFlag.RawValue.self))
         index += 1
 
-        log.debug("device time features %{public}@", String(describing: flags))
+        if flags.contains(.supportedE2ECRC),
+           !data.isCRCPrefixValid
+        {
+            log.error("device time feature CRC is invalid.")
+            return .failure(.invalidCRC)
+        }
 
+        log.debug("device time features %{public}@", String(describing: flags))
         return .success(flags)
     }
 }
@@ -44,7 +83,7 @@ extension PeripheralManager {
                 throw PeripheralManagerError.timeout
             }
 
-            return DTFeatures.handleData(characteristicData)
+            return DTFeaturesDataHandler.handleData(characteristicData)
         } catch let error as PeripheralManagerError {
             throw error
         }

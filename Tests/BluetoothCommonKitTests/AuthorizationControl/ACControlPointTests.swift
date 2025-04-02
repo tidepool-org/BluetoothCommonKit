@@ -11,7 +11,7 @@ import XCTest
 
 class ACControlPointTests: XCTestCase {
 
-    private var acControlPoint: ACControlPoint!
+    private var acControlPoint: ACControlPointDataHandler!
     private var securityManager: SecurityManager!
     private var mockKeychainManager: MockKeychainManager!
     private var securityManagerTestingDelegate = SecurityManagerTestingDelegate()
@@ -23,8 +23,8 @@ class ACControlPointTests: XCTestCase {
         securityManager.delegate = securityManagerTestingDelegate
         securityManager.generateKeyPair()
         let serverPublicKeyData = Data(hexadecimalString: "a8c5fdce8b62c5ada598f141adb3b26cf254c280b2857a63d2ad783a73115f6b806e1aafec4af80a0d786b3de45375b517a7e5b51ffb2c356537c9e6ef227d4a")!
-        securityManager.generateSharedSecret(serverPublicKeyData: serverPublicKeyData)
-        acControlPoint = ACControlPoint(securityManager: securityManager, maxRequestSize: 19)
+        securityManager.generateSharedSecret(receivedPublicKeyData: serverPublicKeyData)
+        acControlPoint = ACControlPointDataHandler(securityManager: securityManager, maxRequestSize: 19)
     }
 
     func testOpcode() {
@@ -90,7 +90,7 @@ class ACControlPointTests: XCTestCase {
     func testInitialization() {
         XCTAssertTrue(acControlPoint.requestQueue.isEmpty)
         XCTAssertFalse(acControlPoint.procedureRunning)
-        XCTAssertTrue(acControlPoint.storedResponses.isEmpty)
+        XCTAssertTrue(acControlPoint.storedPayloads.isEmpty)
         XCTAssertEqual(acControlPoint.segmentCounter, 0)
         XCTAssertTrue(acControlPoint.uuidToHandleMap.isEmpty)
     }
@@ -123,9 +123,9 @@ class ACControlPointTests: XCTestCase {
         switch result {
         case .failure(_):
             XCTAssert(false)
-        case .success():
+        case .success(_):
             XCTAssertTrue(acControlPoint.requestQueue.isEmpty)
-            XCTAssertTrue(acControlPoint.storedResponses.isEmpty)
+            XCTAssertTrue(acControlPoint.storedPayloads.isEmpty)
         }
     }
     
@@ -143,9 +143,9 @@ class ACControlPointTests: XCTestCase {
         switch result {
         case .failure(_):
             XCTAssert(false)
-        case .success():
+        case .success(_):
             XCTAssertTrue(acControlPoint.requestQueue.isEmpty)
-            XCTAssertTrue(acControlPoint.storedResponses.isEmpty)
+            XCTAssertTrue(acControlPoint.storedPayloads.isEmpty)
         }
     }
     
@@ -165,7 +165,7 @@ class ACControlPointTests: XCTestCase {
         switch result {
         case .failure(let error):
             XCTAssertEqual(error, .invalidFormat)
-        case .success():
+        case .success(_):
             XCTAssert(false)
         }
     }
@@ -222,7 +222,7 @@ class ACControlPointTests: XCTestCase {
         index+=1
         XCTAssertEqual(request[request.startIndex.advanced(by: index)...].to(KeyID.self), algorithmKeyID)
         index+=2
-        guard let clientIVFixedField = securityManager.configuration.clientIVFixedField else {
+        guard let clientIVFixedField = securityManager.configuration.generatedIVFixedField else {
             XCTAssert(false)
             return
         }

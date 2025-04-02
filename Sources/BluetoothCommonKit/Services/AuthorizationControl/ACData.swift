@@ -9,26 +9,101 @@
 import CoreBluetooth
 import os.log
 
-public protocol ACDataDelegate: AnyObject {
+// MARK: - Support Server Implementation
+public protocol ACSDataCharacteristicDelegate: AnyObject {
+    func processRequest(_ request: Data, for resourceHandle: ResourceHandle)
+}
+
+public class ACSDataCharacteristic: SegmentationHandler {
+    private let log = OSLog(category: "ACSDataCharacteristic")
+    
+    public weak var delegate: ACSDataCharacteristicDelegate?
+    
+    public var maxRequestSize: Int
+    
+    public var storedPayloads: [Data] = []
+    
+    public var lockedSegmentCounter: Locked<UInt8> = Locked(0)
+    
+    var messageQueue: MessagingQueue
+    
+    var securityManager: SecurityManager
+    
+    var status : ACStatusCharacteristic
+    
+    public init(messageQueue: MessagingQueue,
+         securityManager: SecurityManager,
+         status: ACStatusCharacteristic,
+         maxRequestSize: Int)
+    {
+        self.messageQueue = messageQueue
+        self.securityManager = securityManager
+        self.status = status
+        self.maxRequestSize = maxRequestSize
+    }
+ 
+    public func onWrite(_ secureRequest: Data?) -> CBATTError.Code {
+        guard let secureRequest = secureRequest else {
+            return .invalidPdu
+        }
+        
+        guard messageQueue.gattServer.isCharacteristicSubscribed( ACCharacteristicUUID.dataOutIndicate.cbUUID) ?? false else {
+            return .improperlyConfigured
+        }
+        
+        guard status.currentRestrictionMapID != 0 else {
+            log.debug("resources are not protected. No reason to use the data characteristic")
+            return .requestNotSupported
+        }
+        
+        let result = checkSegmentedPayload(secureRequest)
+        switch result {
+        case .success(let completeSecureRequest):
+            log.debug("complete secure request %{public}@", completeSecureRequest.hexadecimalString)
+            
+            let decryptionResult = securityManager.decryptSecurePayload(completeSecureRequest)
+            switch decryptionResult {
+            case .success(let request):
+                log.debug("request %{public}@", request.toHexString())
+                
+                let resourceHandle: ResourceHandle = request[request.startIndex...].to(UInt16.self)
+                
+                delegate?.processRequest(request.dropFirst(2), for: resourceHandle)
+            case .failure(let error):
+                guard error != .incorrectSecurityConfiguration else {
+                    return .incorrectSecurityConfigurationCode
+                }
+                
+                log.debug("decryption failed %{public}@", error.localizedDescription)
+            }
+        case .failure(let error):
+            log.debug("segmentation error: %{public}@", error.localizedDescription)
+        }
+        return .success
+    }
+}
+
+// MARK: - Support Client Implementation
+public protocol ACDataDataHandlerDelegate: AnyObject {
     func didEncounterE2ECounterError()
     func didEncounterSegmentCounterError()
 }
 
-public class ACData: SegmentationHandler {
+public class ACDataDataHandler: SegmentationHandler {
     
     private let log = OSLog(category: "ACData")
     
     private let securityManager: SecurityManager
     
-    public weak var delegate: ACDataDelegate?
+    public weak var delegate: ACDataDataHandlerDelegate?
     
     private(set) public var maxRequestSize: Int
-
+    
     public func updateMaxRequestSize(_ newValue: Int) {
         maxRequestSize = newValue
     }
     
-    public var storedResponses: [Data] = []
+    public var storedPayloads: [Data] = []
     
     public var lockedSegmentCounter: Locked<UInt8> = Locked(0)
     
@@ -78,7 +153,7 @@ public class ACData: SegmentationHandler {
             return .failure(.securityManagerError(error))
         }
     }
-
+    
     func writeACDataRequest(_ peripherialManager: PeripheralManager, request: Data, timeout: TimeInterval) throws {
         try peripherialManager.writeACDataRequest(request, timeout: timeout)
     }
@@ -93,7 +168,7 @@ public class ACData: SegmentationHandler {
         let result = securityManager.protectRequest(requestToProtectedResource)
         switch result {
         case .success(let secureRequest):
-            let secureRequestSegments = segmentRequest(secureRequest)
+            let secureRequestSegments = segmentPayload(secureRequest)
             return .success(secureRequestSegments)
         case .failure(let error):
             return .failure(error)
@@ -101,16 +176,16 @@ public class ACData: SegmentationHandler {
     }
     
     public func handleSecureResponse(_ secureResponse: Data) -> Result<ResourceResponse, DeviceCommError> {
-        let result = checkResponseSegment(secureResponse)
+        let result = checkSegmentedPayload(secureResponse)
         switch result {
         case .success(let completeSecureResponse):
             log.debug("complete secure response %{public}@", completeSecureResponse.hexadecimalString)
-
-            let decryptionResult = securityManager.decryptSecureResponse(completeSecureResponse)
+            
+            let decryptionResult = securityManager.decryptSecurePayload(completeSecureResponse)
             switch decryptionResult {
             case .success(let response):
                 log.debug("response %{public}@", response.toHexString())
-
+                
                 let resourceHandle: ResourceHandle = response[response.startIndex...].to(UInt16.self)
                 return .success(ResourceResponse(resourceHandle: resourceHandle, response: response.dropFirst(2)))
             case .failure(let error):

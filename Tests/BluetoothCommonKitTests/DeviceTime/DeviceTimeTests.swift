@@ -9,12 +9,14 @@
 import XCTest
 @testable import BluetoothCommonKit
 
-final class DeviceTimeTests: XCTestCase {
+final class DeviceTimeTests: XCTestCase, E2EProtectionDelegate {
 
-    private var deviceTime: DeviceTime!
+    private var deviceTime: DeviceTimeDataHandler!
+    internal var isE2EProtectionSupported: Bool = true
     
     override func setUp() {
-        deviceTime = DeviceTime()
+        deviceTime = DeviceTimeDataHandler()
+        deviceTime.e2eDelegate = self
     }
     
     func testDTStatusFlag() {
@@ -54,7 +56,8 @@ final class DeviceTimeTests: XCTestCase {
     }
 
     func testDeviceTimeHandleDataInvalidFormat() {
-        let response = Data(UInt64(123456789))
+        isE2EProtectionSupported = false
+        let response = Data(UInt32(123456789))
         let (result, _) = deviceTime.handleData(response)
         switch result {
         case .success(_):

@@ -9,9 +9,10 @@
 import Foundation
 import os.log
 
-private let log = OSLog(category: "ResourceHandleToUUIDMap")
+// TODO need to rework this
 
 struct RestrictionMapDescriptor: RequestHandler {
+    private static let log = OSLog(category: "RestrictionMapDescriptor")
     
     // dictionary keys
     static let opcodeArrayKey = "OpcodeArray"
@@ -28,7 +29,7 @@ struct RestrictionMapDescriptor: RequestHandler {
         return RestrictionMapDescriptor.buildControlPointRequest(opcode: ACControlPointOpcode.getRestrictionMapDescriptor)
     }
     
-    static func handleResponse(_ response: Data) -> DeviceCommResult<Void> {
+    static func handleResponse(_ response: Data) -> DeviceCommResult<Any?> {
         var records = Array<Dictionary<String, Any>>()
         var index = 1 // skip the opcode
         
@@ -69,12 +70,12 @@ struct RestrictionMapDescriptor: RequestHandler {
         // create response
         let parsedResponse = [recordsKey: records]
         print("parsed response \(parsedResponse)")
-        return .success
+        return .success(parsedResponse)
     }
     
 }
 
-enum RecordTypeRestrictionMap: UInt8 {
+public enum RecordTypeRestrictionMap: UInt8 {
     case restrictionMapID
     case defaultInformationSecurityConfiguration
     case protectedCharacteristic

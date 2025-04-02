@@ -13,7 +13,7 @@ class SegmentationHandlerTests: XCTestCase, SegmentationHandler {
     
     var maxRequestSize: Int = 19
     
-    var storedResponses: [Data] = []
+    var storedPayloads: [Data] = []
     
     var lockedSegmentCounter: Locked<UInt8> = Locked(0)
 
@@ -31,7 +31,7 @@ class SegmentationHandlerTests: XCTestCase, SegmentationHandler {
         var expectedRequest = Data(SegmentationHeader.firstPart.rawValue | SegmentationHeader.lastPart.rawValue | (segmentCountInitialValue << 2))
         expectedRequest.append(request)
         
-        let segmentedRequests = segmentRequest(request)
+        let segmentedRequests = segmentPayload(request)
         
         XCTAssertEqual(segmentedRequests.count, 1)
         XCTAssertEqual(segmentCounter, 1)
@@ -48,14 +48,14 @@ class SegmentationHandlerTests: XCTestCase, SegmentationHandler {
         var expectedSegmentedRequest2 = Data(SegmentationHeader.lastPart.rawValue | ((segmentCountInitialValue+1) << 2))
         expectedSegmentedRequest2.append(contentsOf: stride(from: 20, through: 30, by: 1).map { UInt8($0) })
         
-        let segmentedRequests = segmentRequest(request)
+        let segmentedRequests = segmentPayload(request)
         XCTAssertEqual(segmentedRequests.count, 2)
         XCTAssertEqual(segmentCounter, 2)
         XCTAssertEqual(segmentedRequests[0], expectedSegmentedRequest1)
         XCTAssertEqual(segmentedRequests[1], expectedSegmentedRequest2)
     }
     
-    func testCheckResponseSegment() {
+    func testcheckSegmentedPayload() {
         // create a segmented response
         let uint8Array1: [UInt8] = stride(from: 1, through: 30, by: 1).map { UInt8($0) }
         let expectedResponse = Data(uint8Array1)
@@ -74,7 +74,7 @@ class SegmentationHandlerTests: XCTestCase, SegmentationHandler {
         var interruptingResponse2 = Data(SegmentationHeader.lastPart.rawValue | ((interruptingSegmentCountInitialValue+1) << 2))
         interruptingResponse2.append(contentsOf: stride(from: 50, through: 60, by: 1).map { UInt8($0) })
 
-        var result = checkResponseSegment(responseSegment1)
+        var result = checkSegmentedPayload(responseSegment1)
         switch result {
         case .success(_):
             XCTAssert(false)
@@ -83,9 +83,9 @@ class SegmentationHandlerTests: XCTestCase, SegmentationHandler {
                 XCTAssert(false)
             }
         }
-        XCTAssertEqual(storedResponses[0], responseSegment1)
+        XCTAssertEqual(storedPayloads[0], responseSegment1)
         
-        result = checkResponseSegment(interruptingResponse1)
+        result = checkSegmentedPayload(interruptingResponse1)
         switch result {
         case .success(_):
             XCTAssert(false)
@@ -94,30 +94,30 @@ class SegmentationHandlerTests: XCTestCase, SegmentationHandler {
                 XCTAssert(false)
             }
         }
-        XCTAssertEqual(storedResponses[0], responseSegment1)
-        XCTAssertEqual(storedResponses[1], interruptingResponse1)
+        XCTAssertEqual(storedPayloads[0], responseSegment1)
+        XCTAssertEqual(storedPayloads[1], interruptingResponse1)
         
-        result = checkResponseSegment(responseSegment2)
+        result = checkSegmentedPayload(responseSegment2)
         switch result {
         case .success(let complete):
             XCTAssertEqual(complete, expectedResponse)
         case .failure(_):
             XCTAssert(false)
         }
-        XCTAssertEqual(storedResponses.count, 1)
-        XCTAssertEqual(storedResponses[0], interruptingResponse1)
+        XCTAssertEqual(storedPayloads.count, 1)
+        XCTAssertEqual(storedPayloads[0], interruptingResponse1)
         
-        result = checkResponseSegment(interruptingResponse2)
+        result = checkSegmentedPayload(interruptingResponse2)
         switch result {
         case .success(let complete):
             XCTAssertEqual(complete, expectedInterruptingResponse)
         case .failure(_):
             XCTAssert(false)
         }
-        XCTAssertTrue(storedResponses.isEmpty)
+        XCTAssertTrue(storedPayloads.isEmpty)
     }
     
-    func testCheckResponseSegmentCounterRollover() {
+    func testcheckSegmentedPayloadCounterRollover() {
         let uint8Array: [UInt8] = stride(from: 1, through: 30, by: 1).map { UInt8($0) }
         let expectedResponse = Data(uint8Array)
         let segmentCountInitialValue: UInt8 = SegmentationHeader.maxCounterValue
@@ -127,7 +127,7 @@ class SegmentationHandlerTests: XCTestCase, SegmentationHandler {
         var responseSegment2 = Data(SegmentationHeader.lastPart.rawValue | ((0) << 2)) // 0 is the rollover value
         responseSegment2.append(contentsOf: stride(from: 20, through: 30, by: 1).map { UInt8($0) })
 
-        var result = checkResponseSegment(responseSegment1)
+        var result = checkSegmentedPayload(responseSegment1)
         switch result {
         case .success(_):
             XCTAssert(false)
@@ -136,16 +136,16 @@ class SegmentationHandlerTests: XCTestCase, SegmentationHandler {
                 XCTAssert(false)
             }
         }
-        XCTAssertEqual(storedResponses[0], responseSegment1)
+        XCTAssertEqual(storedPayloads[0], responseSegment1)
         
-        result = checkResponseSegment(responseSegment2)
+        result = checkSegmentedPayload(responseSegment2)
         switch result {
         case .success(let complete):
             XCTAssertEqual(complete, expectedResponse)
         case .failure(_):
             XCTAssert(false)
         }
-        XCTAssertTrue(storedResponses.isEmpty)
+        XCTAssertTrue(storedPayloads.isEmpty)
     }
     
     func testResetSegmentCounter() {

@@ -35,7 +35,7 @@ final class DTFeaturesTests: XCTestCase {
         let data = Data(featureFlags.rawValue)
         let dataWithE2EProtection = data.appendingCRCPrefix()
 
-        let result = DTFeatures.handleData(dataWithE2EProtection)
+        let result = DTFeaturesDataHandler.handleData(dataWithE2EProtection)
         switch result {
         case .failure(_):
             XCTAssert(false)
@@ -46,8 +46,8 @@ final class DTFeaturesTests: XCTestCase {
 
     func testHandleInsulinDeliveryStatusDataInvalidFormat() {
         let featureFlags = DTFeatureFlag([.supportedE2ECRC, .supportedEpochYear2000])
-        var data = Data(featureFlags.rawValue)
-        let result = DTFeatures.handleData(data)
+        let data = Data(featureFlags.rawValue)
+        let result = DTFeaturesDataHandler.handleData(data)
         switch result {
         case .failure(let error):
             XCTAssertEqual(error, .invalidFormat)
@@ -61,7 +61,7 @@ final class DTFeaturesTests: XCTestCase {
         var data = Data(UInt16(0))
         data.append(featureFlags.rawValue)
 
-        let result = DTFeatures.handleData(data)
+        let result = DTFeaturesDataHandler.handleData(data)
         switch result {
         case .failure(let error):
             XCTAssertEqual(error, .invalidCRC)

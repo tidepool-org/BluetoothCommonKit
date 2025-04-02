@@ -11,15 +11,15 @@ import Foundation
 public protocol SegmentationHandler: AnyObject {
     var maxRequestSize: Int { get }
     
-    var storedResponses: [Data] { get set }
+    var storedPayloads: [Data] { get set }
     
     var lockedSegmentCounter: Locked<UInt8> { get set }
     
     var segmentCounter: UInt8 { get set }
     
-    func segmentRequest(_ request: Data) -> [Data]
+    func segmentPayload(_ payload: Data) -> [Data]
     
-    func checkResponseSegment(_ responseSegment: Data) -> Result<Data, DeviceCommError>
+    func checkSegmentedPayload(_ segmentedPayload: Data) -> Result<Data, DeviceCommError>
     
     func resetSegmentCounter()
 }
@@ -37,12 +37,12 @@ public extension SegmentationHandler {
         }
     }
     
-    func segmentRequest(_ request: Data) -> [Data] {
+    func segmentPayload(_ payload: Data) -> [Data] {
         var tempRequest = Data()
         var segmentedRequests: [Data] = []
         var counter = 0
         let segmentCounterInitialValue = segmentCounter
-        while (request.count > maxRequestSize * counter) {
+        while (payload.count > maxRequestSize * counter) {
             tempRequest.removeAll()
             let minRange = maxRequestSize*counter
             let maxRange = maxRequestSize*(counter+1)
@@ -51,10 +51,10 @@ public extension SegmentationHandler {
                 segmentationHeader = segmentationHeader | SegmentationHeader.firstPart.rawValue
             }
             
-            if (request.count > maxRange) {
-                tempRequest.append(request.subdata(in: minRange..<maxRange))
+            if (payload.count > maxRange) {
+                tempRequest.append(payload.subdata(in: minRange..<maxRange))
             } else {
-                tempRequest.append(request.subdata(in: minRange..<request.count))
+                tempRequest.append(payload.subdata(in: minRange..<payload.count))
                 segmentationHeader = segmentationHeader | SegmentationHeader.lastPart.rawValue
             }
             tempRequest.insert(segmentationHeader, at: 0)
@@ -66,32 +66,32 @@ public extension SegmentationHandler {
         return segmentedRequests
     }
     
-    func checkResponseSegment(_ responseSegment: Data) -> Result<Data, DeviceCommError> {
-        let receivedSegmentationHeader = SegmentationHeader(rawValue: responseSegment[responseSegment.startIndex...].to(SegmentationHeader.RawValue.self))
+    func checkSegmentedPayload(_ segmentedPayload: Data) -> Result<Data, DeviceCommError> {
+        let receivedSegmentationHeader = SegmentationHeader(rawValue: segmentedPayload[segmentedPayload.startIndex...].to(SegmentationHeader.RawValue.self))
 
         if receivedSegmentationHeader.isFirstPart {
             // this is a new response
             if receivedSegmentationHeader.isLastPart {
                 // Response is complete. Remove the segmentation header and provide the complete reponse
-                return .success(Data(responseSegment[responseSegment.startIndex.advanced(by: 1)...]))
+                return .success(Data(segmentedPayload[segmentedPayload.startIndex.advanced(by: 1)...]))
             } else {
                 // store the response segment to reassemble with remaining segments
-                storedResponses.append(responseSegment)
+                storedPayloads.append(segmentedPayload)
                 return .failure(.partialResponse)
             }
         } else {
             // response is a continuation of a previous response
             // find the previous response using the segment counter
-            for (index, storedResponse) in storedResponses.enumerated() {
-                let storedSegmentationHeader = SegmentationHeader(rawValue: storedResponse[storedResponse.startIndex...].to(UInt8.self))
+            for (index, storedPayload) in storedPayloads.enumerated() {
+                let storedSegmentationHeader = SegmentationHeader(rawValue: storedPayload[storedPayload.startIndex...].to(UInt8.self))
 
                 if (storedSegmentationHeader.nextCounterValue == receivedSegmentationHeader.counter) {
                     // this is a response segment for this stored response
                     // update the stored segmentation header for future comparison
-                    storedResponses[index][0] = receivedSegmentationHeader.rawValue
+                    storedPayloads[index][0] = receivedSegmentationHeader.rawValue
 
                     // append the response segment excluding the segmentation header
-                    storedResponses[index].append(Data(responseSegment[responseSegment.startIndex.advanced(by: 1)...]))
+                    storedPayloads[index].append(Data(segmentedPayload[segmentedPayload.startIndex.advanced(by: 1)...]))
 
                     // check if the response is now complete
                     guard receivedSegmentationHeader.isLastPart else {
@@ -99,8 +99,8 @@ public extension SegmentationHandler {
                     }
 
                     // Response is complete. Remove the segmentation header and provide the complete reponse
-                    let completeResponse = Data(storedResponses[index][responseSegment.startIndex.advanced(by: 1)...])
-                    storedResponses.remove(at: index)
+                    let completeResponse = Data(storedPayloads[index][segmentedPayload.startIndex.advanced(by: 1)...])
+                    storedPayloads.remove(at: index)
                     return .success(completeResponse)
                 }
             }

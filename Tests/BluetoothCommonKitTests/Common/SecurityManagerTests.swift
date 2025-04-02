@@ -183,22 +183,22 @@ class SecurityManagerTests: XCTestCase {
     func testInitialization() {
         let securityManager = SecurityManager()
         securityManager.generateKeyPair()
-        XCTAssertNotNil(securityManager.clientPrivateKey)
+        XCTAssertNotNil(securityManager.generatedPrivateKey)
         
-        let privateKey = securityManager.clientPrivateKey!
+        let privateKey = securityManager.generatedPrivateKey!
         let publicKey = SecKeyCopyPublicKey(privateKey)!
-        XCTAssertEqual(securityManager.getClientPublicKey()!, publicKey)
+        XCTAssertEqual(securityManager.getGeneratedPublicKey()!, publicKey)
         
         var error: Unmanaged<CFError>?
         var publicKeyAsData = SecKeyCopyExternalRepresentation(publicKey, &error)! as Data
         publicKeyAsData = publicKeyAsData.subdata(in: 1..<publicKeyAsData.count)
-        XCTAssertEqual(securityManager.getClientPublicKeyAsData()!, publicKeyAsData)
+        XCTAssertEqual(securityManager.getGeneratedPublicKeyAsData()!, publicKeyAsData)
         
         let publicKeyX = publicKeyAsData.subdata(in: 0..<publicKeyAsData.count/2)
-        XCTAssertEqual(securityManager.getClientPublicKeyX()!, publicKeyX)
+        XCTAssertEqual(securityManager.getGeneratedPublicKeyX()!, publicKeyX)
         
         let publicKeyY = publicKeyAsData.subdata(in: publicKeyAsData.count/2..<publicKeyAsData.count)
-        XCTAssertEqual(securityManager.getClientPublicKeyY()!, publicKeyY)
+        XCTAssertEqual(securityManager.getGeneratedPublicKeyY()!, publicKeyY)
     }
     
     func testGenerateSharedKeyCurveP224() {
@@ -211,15 +211,15 @@ class SecurityManagerTests: XCTestCase {
         let serverPrivateKey = SecKeyCreateRandomKey(attributes224, &error)
         let serverPublicKey = SecKeyCopyPublicKey(serverPrivateKey!)
         let serverPublicKeyRep04XY = SecKeyCopyExternalRepresentation(serverPublicKey!, &error)
-        let serverPublicKeyData = (serverPublicKeyRep04XY! as Data).subdata(in: 1..<(serverPublicKeyRep04XY! as Data).count)
+        let receivedPublicKeyData = (serverPublicKeyRep04XY! as Data).subdata(in: 1..<(serverPublicKeyRep04XY! as Data).count)
         
         // calculating client shared secret
         securityManager.generateKeyPair()
-        guard let clientPublicKey = securityManager.getClientPublicKey() else {
+        guard let clientPublicKey = securityManager.getGeneratedPublicKey() else {
             XCTAssert(false, "client key creation failed")
             return
         }
-        securityManager.generateSharedSecret(serverPublicKeyData: serverPublicKeyData)
+        securityManager.generateSharedSecret(receivedPublicKeyData: receivedPublicKeyData)
         let sharedKeyDataClient = securityManager.delegate?.sharedKeyData
         
         // calculating server shared secret
@@ -242,15 +242,15 @@ class SecurityManagerTests: XCTestCase {
         let serverPrivateKey = SecKeyCreateRandomKey(attributes256, &error)
         let serverPublicKey = SecKeyCopyPublicKey(serverPrivateKey!)
         let serverPublicKeyRep04XY = SecKeyCopyExternalRepresentation(serverPublicKey!, &error)
-        let serverPublicKeyData = (serverPublicKeyRep04XY! as Data).subdata(in: 1..<(serverPublicKeyRep04XY! as Data).count)
+        let receivedPublicKeyData = (serverPublicKeyRep04XY! as Data).subdata(in: 1..<(serverPublicKeyRep04XY! as Data).count)
 
         // calculating client shared secret
         securityManager.generateKeyPair()
-        guard let clientPublicKey = securityManager.getClientPublicKey() else {
+        guard let clientPublicKey = securityManager.getGeneratedPublicKey() else {
             XCTAssert(false, "client key creation failed")
             return
         }
-        securityManager.generateSharedSecret(serverPublicKeyData: serverPublicKeyData)
+        securityManager.generateSharedSecret(receivedPublicKeyData: receivedPublicKeyData)
         let sharedKeyDataClient = securityManager.delegate?.sharedKeyData
 
         // calculating server shared secret
@@ -365,11 +365,11 @@ class SecurityManagerTests: XCTestCase {
         let serverPrivateKey = SecKeyCreateRandomKey(attributes256, &error)
         let serverPublicKey = SecKeyCopyPublicKey(serverPrivateKey!)
         let serverPublicKeyRep04XY = SecKeyCopyExternalRepresentation(serverPublicKey!, &error)
-        let serverPublicKeyData = (serverPublicKeyRep04XY! as Data).subdata(in: 1..<(serverPublicKeyRep04XY! as Data).count)
+        let receivedPublicKeyData = (serverPublicKeyRep04XY! as Data).subdata(in: 1..<(serverPublicKeyRep04XY! as Data).count)
         
         // calculating shared secret
         securityManager.generateKeyPair()
-        securityManager.generateSharedSecret(serverPublicKeyData: serverPublicKeyData)
+        securityManager.generateSharedSecret(receivedPublicKeyData: receivedPublicKeyData)
         let sharedKeyData = securityManager.delegate?.sharedKeyData!
         
         // set the OOB number
@@ -378,10 +378,10 @@ class SecurityManagerTests: XCTestCase {
         
         // calculate confirmation key
         let zeroKeyData = Data(Array(repeating: 0x00, count: 16))
-        var message = Data(securityManager.getServerPublicKeyX()!)
-        message.append(Data(securityManager.getServerPublicKeyY()!))
-        message.append(Data(securityManager.getClientPublicKeyX()!))
-        message.append(Data(securityManager.getClientPublicKeyY()!))
+        var message = Data(securityManager.getCounterpartPublicKeyX()!)
+        message.append(Data(securityManager.getCounterpartPublicKeyY()!))
+        message.append(Data(securityManager.getGeneratedPublicKeyX()!))
+        message.append(Data(securityManager.getGeneratedPublicKeyY()!))
         var key = SymmetricKey(data: zeroKeyData)
         let saltKey = Data(CryptoKit.HMAC<SHA256>.authenticationCode(for: message, using: key))
         
@@ -395,7 +395,7 @@ class SecurityManagerTests: XCTestCase {
         XCTAssertEqual(Data(expectedConfirmationKey), confirmationKey)
         
         // calculate expected client confirmation code
-        let clientRanNum = securityManager.clientRandomNumberData
+        let clientRanNum = securityManager.generatedRandomNumberData
         let oobRanNum = securityManager.configuration.oobRandomNumber
         message = clientRanNum
         key = SymmetricKey(data: confirmationKey)
@@ -409,18 +409,18 @@ class SecurityManagerTests: XCTestCase {
         let expectedServerConfirmationCode = Data(CryptoKit.HMAC<SHA256>.authenticationCode(for: message, using: key))
         let expectedServerConfirmationCodeLittleEndian = Data(expectedServerConfirmationCode.reversed())
         
-        let confirmationCodeClient = securityManager.calculateClientConfirmationCodeInLittleEndian()
-        let (confirmationCodeServerLittleEndian, _) = securityManager.calculateKeyConfirmationServerLittleEndian(serverRandomNumberLittleEndian: serverRandomNumberLittleEndian)
+        let confirmationCodeClient = securityManager.calculateGeneratedConfirmationCodeInLittleEndian()
+        let (confirmationCodeServerLittleEndian, _) = securityManager.calculateKeyConfirmationReceivedLittleEndian(receivedRandomNumberLittleEndian: serverRandomNumberLittleEndian)
 
         XCTAssertEqual(expectedClientConfirmationCode, confirmationCodeClient)
         XCTAssertEqual(expectedServerConfirmationCodeLittleEndian, confirmationCodeServerLittleEndian)
     }
     
-    func testGetClientPublicKeyXAndY() {
+    func testgetGeneratedPublicKeyXAndY() {
         securityManager.generateKeyPair()
-        let clientPublicKey = securityManager.getClientPublicKeyAsData()!
-        XCTAssertEqual(securityManager.getClientPublicKeyX(), clientPublicKey.subdata(in: 0..<clientPublicKey.count/2))
-        XCTAssertEqual(securityManager.getClientPublicKeyY(), clientPublicKey.subdata(in: clientPublicKey.count/2..<clientPublicKey.count))
+        let clientPublicKey = securityManager.getGeneratedPublicKeyAsData()!
+        XCTAssertEqual(securityManager.getGeneratedPublicKeyX(), clientPublicKey.subdata(in: 0..<clientPublicKey.count/2))
+        XCTAssertEqual(securityManager.getGeneratedPublicKeyY(), clientPublicKey.subdata(in: clientPublicKey.count/2..<clientPublicKey.count))
     }
     
     func testProtectRequest() {
@@ -433,8 +433,8 @@ class SecurityManagerTests: XCTestCase {
         sharedKeyData = keyData
         securityManager.configuration.macSize = macSize
         securityManager.configuration.nonceSizeOctetsVariable = nonceSizeOctetsVariable
-        securityManager.configuration.serverIVFixedField = ivFixedField
-        securityManager.configuration.clientIVFixedField = ivFixedField
+        securityManager.configuration.receivedIVFixedField = ivFixedField
+        securityManager.configuration.generatedIVFixedField = ivFixedField
         securityManager.configuration.securityControls = [SecurityControlType.nonce, SecurityControlType.mac, SecurityControlType.authenticatedEncryptedATTPacketWithAssociatedData]
         securityManager.configuration.securityConfigurationID = securityConfigurationID
         
@@ -492,8 +492,8 @@ class SecurityManagerTests: XCTestCase {
         sharedKeyData = keyData
         securityManager.configuration.macSize = macSize
         securityManager.configuration.nonceSizeOctetsVariable = nonceSizeOctetsVariable
-        securityManager.configuration.serverIVFixedField = ivFixedField
-        securityManager.configuration.clientIVFixedField = ivFixedField
+        securityManager.configuration.receivedIVFixedField = ivFixedField
+        securityManager.configuration.generatedIVFixedField = ivFixedField
         securityManager.configuration.securityControls = [SecurityControlType.nonce, SecurityControlType.mac, SecurityControlType.authenticatedEncryptedATTPacketWithAssociatedData]
         securityManager.configuration.securityConfigurationID = securityConfigurationID
         
@@ -512,7 +512,7 @@ class SecurityManagerTests: XCTestCase {
         secureResponse.append(Data(Data(encryptedContent.tag).subdata(in: 0..<macSize).reversed()))
         secureResponse.append(Data(encryptedContent.ciphertext.reversed()))
 
-        let result = securityManager.decryptSecureResponse(secureResponse)
+        let result = securityManager.decryptSecurePayload(secureResponse)
         switch result {
         case .success(let response):
             XCTAssertEqual(response, expectedResponse)
@@ -528,8 +528,8 @@ class SecurityManagerTests: XCTestCase {
         expectedNextIV.appendBigEndian(sequenceNumber+1)
         
         let securityManager = SecurityManager(sequenceNumber: sequenceNumber)
-        securityManager.configuration.serverIVFixedField = ivFixedField
-        securityManager.configuration.clientIVFixedField = ivFixedField
+        securityManager.configuration.receivedIVFixedField = ivFixedField
+        securityManager.configuration.generatedIVFixedField = ivFixedField
         
         XCTAssertEqual(securityManager.nextIV(), expectedNextIV)
     }
@@ -544,8 +544,8 @@ class SecurityManagerTests: XCTestCase {
         sharedKeyData = largeKey
         securityManager.configuration.macSize = macSize
         securityManager.configuration.nonceSizeOctetsVariable = nonceSizeOctetsVariable
-        securityManager.configuration.serverIVFixedField = ivFixedField
-        securityManager.configuration.clientIVFixedField = ivFixedField
+        securityManager.configuration.receivedIVFixedField = ivFixedField
+        securityManager.configuration.generatedIVFixedField = ivFixedField
         securityManager.configuration.securityControls = [SecurityControlType.nonce, SecurityControlType.mac, SecurityControlType.authenticatedEncryptedATTPacketWithAssociatedData]
         
         var request = Data(resourceHandle)
@@ -554,7 +554,7 @@ class SecurityManagerTests: XCTestCase {
         var result = securityManager.protectRequest(request)
         switch result {
         case .success(let protected):
-            result = securityManager.decryptSecureResponse(protected)
+            result = securityManager.decryptSecurePayload(protected)
             switch result {
             case .success(let final):
                 XCTAssertEqual(request, final)
@@ -585,11 +585,11 @@ class SecurityManagerTests: XCTestCase {
         securityManager.configuration.nonceSizeOctetsVariable = 32
         XCTAssertEqual(updatedConfiguration.nonceSizeOctetsVariable, 32)
         
-        securityManager.configuration.serverIVFixedField = Data(UInt32(0xffffffff))
-        XCTAssertEqual(updatedConfiguration.serverIVFixedField, Data(UInt32(0xffffffff)))
+        securityManager.configuration.receivedIVFixedField = Data(UInt32(0xffffffff))
+        XCTAssertEqual(updatedConfiguration.receivedIVFixedField, Data(UInt32(0xffffffff)))
 
-        securityManager.configuration.clientIVFixedField = Data(UInt32(0xffffffff))
-        XCTAssertEqual(updatedConfiguration.clientIVFixedField, Data(UInt32(0xffffffff)))
+        securityManager.configuration.generatedIVFixedField = Data(UInt32(0xffffffff))
+        XCTAssertEqual(updatedConfiguration.generatedIVFixedField, Data(UInt32(0xffffffff)))
 
         securityManager.configuration.sequenceNumber = 100
         XCTAssertEqual(updatedConfiguration.sequenceNumber, 100)
@@ -622,8 +622,8 @@ class SecurityManagerTests: XCTestCase {
         sharedKeyData = keyData
         securityManager.configuration.macSize = macSize
         securityManager.configuration.nonceSizeOctetsVariable = nonceSizeOctetsVariable
-        securityManager.configuration.serverIVFixedField = ivFixedField
-        securityManager.configuration.clientIVFixedField = ivFixedField
+        securityManager.configuration.receivedIVFixedField = ivFixedField
+        securityManager.configuration.generatedIVFixedField = ivFixedField
         securityManager.configuration.securityControls = [SecurityControlType.nonce, SecurityControlType.mac, SecurityControlType.authenticatedEncryptedATTPacketWithAssociatedData]
         securityManager.configuration.securityConfigurationID = securityConfigurationID
 
@@ -632,7 +632,7 @@ class SecurityManagerTests: XCTestCase {
         secureResponse.append(UInt64(1))
         secureResponse.append(Data(0x01020304))
 
-        let result = securityManager.decryptSecureResponse(secureResponse)
+        let result = securityManager.decryptSecurePayload(secureResponse)
         switch result {
         case .success(_):
             XCTAssert(false)
@@ -650,8 +650,8 @@ class SecurityManagerTests: XCTestCase {
         sharedKeyData = tooShortKeyData
         securityManager.configuration.macSize = macSize
         securityManager.configuration.nonceSizeOctetsVariable = nonceSizeOctetsVariable
-        securityManager.configuration.serverIVFixedField = ivFixedField
-        securityManager.configuration.clientIVFixedField = ivFixedField
+        securityManager.configuration.receivedIVFixedField = ivFixedField
+        securityManager.configuration.generatedIVFixedField = ivFixedField
         securityManager.configuration.securityControls = [SecurityControlType.nonce, SecurityControlType.mac, SecurityControlType.authenticatedEncryptedATTPacketWithAssociatedData]
         securityManager.configuration.securityConfigurationID = securityConfigurationID
 
@@ -674,8 +674,8 @@ class SecurityManagerTests: XCTestCase {
         sharedKeyData = keyData
         securityManager.configuration.macSize = macSize
         securityManager.configuration.nonceSizeOctetsVariable = nonceSizeOctetsVariable
-        securityManager.configuration.serverIVFixedField = ivFixedField
-        securityManager.configuration.clientIVFixedField = ivFixedField
+        securityManager.configuration.receivedIVFixedField = ivFixedField
+        securityManager.configuration.generatedIVFixedField = ivFixedField
         securityManager.configuration.securityControls = [SecurityControlType.nonce, SecurityControlType.mac, SecurityControlType.authenticatedEncryptedATTPacketWithAssociatedData]
         securityManager.configuration.securityConfigurationID = securityConfigurationID
 
@@ -684,7 +684,7 @@ class SecurityManagerTests: XCTestCase {
         secureResponse.append(UInt64(1))
         secureResponse.append(Data(0x01020304))
 
-        let result = securityManager.decryptSecureResponse(secureResponse)
+        let result = securityManager.decryptSecurePayload(secureResponse)
         switch result {
         case .success(_):
             XCTAssert(false)
@@ -750,12 +750,12 @@ class SecurityManagerTests: XCTestCase {
         let serverPrivateKey = SecKeyCreateRandomKey(attributes256, &error)
         let serverPublicKey = SecKeyCopyPublicKey(serverPrivateKey!)
         let serverPublicKeyRep04XY = SecKeyCopyExternalRepresentation(serverPublicKey!, &error)
-        let serverPublicKeyData = (serverPublicKeyRep04XY! as Data).subdata(in: 1..<(serverPublicKeyRep04XY! as Data).count)
+        let receivedPublicKeyData = (serverPublicKeyRep04XY! as Data).subdata(in: 1..<(serverPublicKeyRep04XY! as Data).count)
 
         // calculating client shared secret
         securityManager.configuration.ellipticCurve = .p256
         securityManager.generateKeyPair()
-        guard let clientPublicKey = securityManager.getClientPublicKey() else {
+        guard let clientPublicKey = securityManager.getGeneratedPublicKey() else {
             XCTAssert(false, "client key creation failed")
             return
         }
@@ -763,7 +763,7 @@ class SecurityManagerTests: XCTestCase {
         let keyDerivationFunctionConfiguration = SecurityManager.Configuration.KeyDerivationFunctionConfiguration(keyDerivationFunction: .hkdfSHA256)
         securityManager.configuration.keyDerivationFunctionConfiguration = keyDerivationFunctionConfiguration
 
-        securityManager.generateSharedSecret(serverPublicKeyData: serverPublicKeyData)
+        securityManager.generateSharedSecret(receivedPublicKeyData: receivedPublicKeyData)
         let success = securityManager.derivateSharedKey()
         XCTAssertTrue(success)
         

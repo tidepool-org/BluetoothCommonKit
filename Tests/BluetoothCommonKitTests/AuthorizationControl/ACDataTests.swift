@@ -28,10 +28,10 @@ class ACDataTests: XCTestCase {
         let securityManager = SecurityManager()
         securityManager.delegate = securityManagerTestingDelegate
         securityManager.generateKeyPair()
-        securityManager.generateSharedSecret(serverPublicKeyData: serverPublicKeyData)
+        securityManager.generateSharedSecret(receivedPublicKeyData: serverPublicKeyData)
         
         // create secure request segments
-        let acData = ACData(securityManager: securityManager, maxRequestSize: 19)
+        let acData = ACDataDataHandler(securityManager: securityManager, maxRequestSize: 19)
         let secretMessage = "This is a top secret message!!"
         let request = secretMessage.data(using: .utf8)
         let resourceHandle: ResourceHandle = 1234
@@ -61,7 +61,7 @@ class ACDataTests: XCTestCase {
 
     func testPrepareSecureRequestErrorMissingKey() {
         let securityManager = SecurityManager()
-        let acData = ACData(securityManager: securityManager, maxRequestSize: 19)
+        let acData = ACDataDataHandler(securityManager: securityManager, maxRequestSize: 19)
         let secretMessage = "This is a top secret message!!"
         let request = secretMessage.data(using: .utf8)
         let resourceHandle: ResourceHandle = 1234
@@ -76,7 +76,7 @@ class ACDataTests: XCTestCase {
 
     func testHandleResponsePartialResponse() {
         let securityManager = SecurityManager()
-        let acData = ACData(securityManager: securityManager, maxRequestSize: 19)
+        let acData = ACDataDataHandler(securityManager: securityManager, maxRequestSize: 19)
         let segmentationHeader = SegmentationHeader(rawValue: 0b00010101)
         var response = Data(segmentationHeader.rawValue)
         response.append(0x01020304)
@@ -92,7 +92,7 @@ class ACDataTests: XCTestCase {
 
     func testHandleResponseSecurityManagerErrorMissingKey() {
         let securityManager = SecurityManager()
-        let acData = ACData(securityManager: securityManager, maxRequestSize: 19)
+        let acData = ACDataDataHandler(securityManager: securityManager, maxRequestSize: 19)
         let segmentationHeader = SegmentationHeader(rawValue: 0b00010111)
         var response = Data(segmentationHeader.rawValue)
         response.append(0x01020304)
@@ -114,7 +114,7 @@ class ACDataTests: XCTestCase {
         securityManagerTestingDelegate.sharedKeyData = Data(hexadecimalString: "7fddb57453c241d03efbed3ac44e371c")!
         let securityManager = SecurityManager()
         securityManager.delegate = securityManagerTestingDelegate
-        let acData = ACData(securityManager: securityManager, maxRequestSize: 19)
+        let acData = ACDataDataHandler(securityManager: securityManager, maxRequestSize: 19)
         let segmentationHeader = SegmentationHeader(rawValue: 0b00010111)
         var response = Data(segmentationHeader.rawValue)
         response.append(0x01020304)
@@ -136,7 +136,7 @@ class ACDataTests: XCTestCase {
         let inproperlyEncryptedMessage = Data(hexadecimalString: "7fddb57453c241d03efbed3ac44e371c")!
         let securityManager = SecurityManager()
         securityManager.delegate = securityManagerTestingDelegate
-        let acData = ACData(securityManager: securityManager, maxRequestSize: 19)
+        let acData = ACDataDataHandler(securityManager: securityManager, maxRequestSize: 19)
         let segmentationHeader = SegmentationHeader(rawValue: 0b00010111)
         let securityConfiguration = securityManager.configuration.securityConfigurationID
         var response = Data(segmentationHeader.rawValue)
@@ -158,7 +158,7 @@ class ACDataTests: XCTestCase {
     func testUpdateMaxRequestSize() {
         var maxRequestSize = 19
         let securityManager = SecurityManager()
-        let acData = ACData(securityManager: securityManager, maxRequestSize: maxRequestSize)
+        let acData = ACDataDataHandler(securityManager: securityManager, maxRequestSize: maxRequestSize)
         XCTAssertEqual(acData.maxRequestSize, maxRequestSize)
 
         maxRequestSize = 256

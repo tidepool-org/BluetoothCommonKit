@@ -14,4 +14,7 @@ public extension CBUUIDRawValue where RawValue == String {
     var cbUUID: CBUUID {
         return CBUUID(string: rawValue)
     }
+    var uuidValue: UInt16 {
+        UInt16(rawValue, radix: 16)!
+    }
 }

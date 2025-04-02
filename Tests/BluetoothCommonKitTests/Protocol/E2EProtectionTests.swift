@@ -67,5 +67,7 @@ class E2EProtectionTests: XCTestCase {
 }
 
 class TestE2EProtection: E2EProtection {
+    var e2eDelegate: E2EProtectionDelegate?
+    
     var e2eCounter: UInt8 = 1
 }

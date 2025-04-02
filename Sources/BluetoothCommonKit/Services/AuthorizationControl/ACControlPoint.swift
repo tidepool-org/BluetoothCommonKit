@@ -9,8 +9,446 @@
 import CoreBluetooth
 import os.log
 
-public class ACControlPoint: SegmentationHandler, ControlPoint {
+public typealias SecurityConfigurationID = UInt16
+
+// MARK: - Support Server Implementation
+public protocol ACControlPointDelegate: AnyObject {
+    var ecdhKeyID: KeyID { get }
+    var algorithmKeyID: KeyID { get }
+    var currentKeyID: KeyID? { get }
+    func getAuthorizationFeatures() -> Data
+    func getRestrictionMap(for restrictionMapID: RestrictionMapID, handleFilter: ResourceHandle) -> Data
+    func getRestrictionMapIDList() -> Data
+    func getInformationSecurityConfiguration(filter: SecurityConfigurationID) -> Data
+    func getKeyDescriptor(filter: KeyID) -> Data
+    func resourceHandleToUUIDMap() -> [[CBUUID: ResourceHandle]]
+    func invalidateKey()
+}
+
+public class ACControlPointCharacteristic: SegmentationHandler {
+    private let log = OSLog(category: "ACControlPointCharacteristic")
     
+    var messageQueue: MessagingQueue
+    
+    public weak var delegate: ACControlPointDelegate?
+    
+    var securityManager: SecurityManager!
+    
+    public var maxRequestSize: Int
+    
+    public var storedPayloads: [Data] = []
+    
+    public var lockedSegmentCounter: Locked<UInt8> = Locked(0)
+    
+    public init(messageQueue: MessagingQueue,
+                securityManager: SecurityManager,
+                maxRequestSize: Int)
+    {
+        self.messageQueue = messageQueue
+        self.securityManager = securityManager
+        self.maxRequestSize = maxRequestSize
+    }
+    
+    public func onWrite(_ request: Data?) -> CBATTError.Code {
+        guard let request = request else {
+            return .invalidPdu
+        }
+        
+        log.debug("ACSCP request %{public}@", request.hexadecimalString)
+        
+        let result = checkSegmentedPayload(request)
+        switch result {
+        case .success(let completeRequest):
+            log.debug("complete secure request %{public}@", completeRequest.hexadecimalString)
+            
+            var index = 0
+            let opcode = ACControlPointOpcode(rawValue: completeRequest[completeRequest.startIndex.advanced(by: index)...].to(ACControlPointOpcode.RawValue.self))
+            index += 1
+            switch opcode {
+            case .getAllActiveDescriptors:
+                let noFilter: UInt16 = 0xffff
+                guard let restrictionMap = delegate?.getRestrictionMap(for: 1, handleFilter: noFilter) else {
+                    respond(to: .getAllActiveDescriptors, with: .procedureNotCompleted)
+                    break
+                }
+                var response = Data(ACControlPointOpcode.restrictionMapDescriptorResponse.rawValue)
+                response.append(contentsOf: restrictionMap)
+                sendResponse(response)
+                
+                guard let securityConfiguration = delegate?.getInformationSecurityConfiguration(filter: noFilter) else {
+                    respond(to: .getAllActiveDescriptors, with: .procedureNotCompleted)
+                    break
+                }
+                response = Data(ACControlPointOpcode.informationSecurityConfigurationDescriptorResponse.rawValue)
+                response.append(contentsOf: securityConfiguration)
+                sendResponse(response)
+                
+                guard let keyDescriptor = delegate?.getKeyDescriptor(filter: noFilter) else {
+                    respond(to: .getAllActiveDescriptors, with: .procedureNotCompleted)
+                    break
+                }
+                response = Data(ACControlPointOpcode.keyDescriptorResponse.rawValue)
+                response.append(contentsOf: keyDescriptor)
+                sendResponse(response)
+            case .getRestrictionMapDescriptor:
+                guard completeRequest.count == 5 else {
+                    respond(to: .getRestrictionMapDescriptor, with: .invalidOperand)
+                    break
+                }
+                
+                let restrictionMapID: RestrictionMapID = completeRequest[completeRequest.startIndex.advanced(by: index)...].to(RestrictionMapID.self)
+                index += 2
+                
+                let handleFilter: ResourceHandle = completeRequest[completeRequest.startIndex.advanced(by: index)...].to(ResourceHandle.self)
+                
+                guard restrictionMapID == 1 else {
+                    respond(to: .getRestrictionMapDescriptor, with: .parameterOutOfRange)
+                    break
+                }
+                
+                guard let restrictionMap = delegate?.getRestrictionMap(for: restrictionMapID, handleFilter: handleFilter) else {
+                    respond(to: .getRestrictionMapDescriptor, with: .procedureNotCompleted)
+                    break
+                }
+                var response = Data(ACControlPointOpcode.restrictionMapDescriptorResponse.rawValue)
+                response.append(contentsOf: restrictionMap)
+                sendResponse(response)
+            case .getRestrictionMapIDList:
+                guard let restrictionMapIDList = delegate?.getRestrictionMapIDList() else {
+                    respond(to: .getRestrictionMapIDList, with: .procedureNotCompleted)
+                    break
+                }
+                var response = Data(ACControlPointOpcode.restrictionMapIDListResponse.rawValue)
+                response.append(contentsOf: restrictionMapIDList)
+                sendResponse(response)
+            case .getResourceHandleToUUIDMap:
+                guard let uuidMap = delegate?.resourceHandleToUUIDMap() else {
+                    respond(to: .getResourceHandleToUUIDMap, with: .procedureNotCompleted)
+                    break
+                }
+                var response = Data(ACControlPointOpcode.resourceHandleToUUIDMapResponse.rawValue)
+                response.append(contentsOf: generateData(from: uuidMap))
+                sendResponse(response)
+            case .getInformationSecurityConfigurationDescriptor:
+                guard completeRequest.count == 4 else {
+                    respond(to: .getInformationSecurityConfigurationDescriptor, with: .invalidOperand)
+                    break
+                }
+                
+                let filter: SecurityConfigurationID = completeRequest[completeRequest.startIndex...].to(SecurityConfigurationID.self)
+                guard let restrictionMap = delegate?.getInformationSecurityConfiguration(filter: filter) else {
+                    respond(to: .getInformationSecurityConfigurationDescriptor, with: .procedureNotCompleted)
+                    break
+                }
+                var response = Data(ACControlPointOpcode.informationSecurityConfigurationDescriptorResponse.rawValue)
+                response.append(contentsOf: restrictionMap)
+                sendResponse(response)
+            case .getKeyDescriptor:
+                guard completeRequest.count == 4 else {
+                    respond(to: .getKeyDescriptor, with: .invalidOperand)
+                    break
+                }
+                
+                let filter: KeyID = completeRequest[completeRequest.startIndex...].to(KeyID.self)
+                guard let keyDescriptor = delegate?.getKeyDescriptor(filter: filter) else {
+                    respond(to: .getKeyDescriptor, with: .procedureNotCompleted)
+                    break
+                }
+                var response = Data(ACControlPointOpcode.keyDescriptorResponse.rawValue)
+                response.append(contentsOf: keyDescriptor)
+                sendResponse(response)
+            case .getCurrentKeyList:
+                var response = Data(ACControlPointOpcode.currentKeyListResponse.rawValue)
+                guard let keyID = delegate?.currentKeyID else {
+                    response.append(UInt8(0))
+                    sendResponse(response)
+                    break
+                }
+                response = Data(UInt8(1))
+                response = Data(keyID)
+                sendResponse(response)
+            case .startKeyExchange:
+                guard completeRequest.count == 5 else {
+                    respond(to: .startKeyExchange, with: .invalidOperand)
+                    break
+                }
+
+                let keyID = completeRequest[completeRequest.startIndex.advanced(by: index)...].to(KeyID.self)
+                index += 2
+                let confirmationMethod = StartKeyExchangeConfirmationMethod(rawValue: completeRequest[completeRequest.startIndex.advanced(by: index)...].to(StartKeyExchangeConfirmationMethod.RawValue.self))
+                index += 1
+                let confirmationAction = StartKeyExchangeConfirmationAction(rawValue: completeRequest[completeRequest.startIndex.advanced(by: index)...].to(StartKeyExchangeConfirmationAction.RawValue.self))
+                
+                guard keyID == delegate?.ecdhKeyID,
+                      confirmationMethod == .oobNumberStatic,
+                      confirmationAction == .staticAction
+                else {
+                    respond(to: .startKeyExchange, with: .procedureNotApplicable)
+                    break
+                }
+                securityManager.generateKeyPair()
+                respondWithSuccess(to: .startKeyExchange)
+            case .invalidateKey:
+                let keyID = completeRequest[completeRequest.startIndex.advanced(by: index)...].to(KeyID.self)
+                index += 2
+                guard keyID == delegate?.currentKeyID else {
+                    respond(to: .invalidateKey, with: .procedureNotApplicable)
+                    break
+                }
+                delegate?.invalidateKey()
+                respondWithSuccess(to: .invalidateKey)
+            case .getACSFeature:
+                guard let features = delegate?.getAuthorizationFeatures() else {
+                    respond(to: .getACSFeature, with: .procedureNotCompleted)
+                    break
+                }
+                var response = Data(ACControlPointOpcode.acsFeatureResponse.rawValue)
+                response.append(contentsOf: features)
+                sendResponse(response)
+            case .keyExchangeECDH:
+                guard completeRequest.count == 69 else { // key size is 32 bytes
+                    respond(to: .keyExchangeECDH, with: .invalidOperand)
+                    break
+                }
+                
+                let keyID = completeRequest[completeRequest.startIndex.advanced(by: index)...].to(KeyID.self)
+                index += 2
+                
+                guard keyID == delegate?.ecdhKeyID else {
+                    respond(to: .keyExchangeECDH, with: .procedureNotApplicable)
+                    break
+                }
+                
+                // get x-coordinate
+                let xCoorSize = Int(completeRequest[completeRequest.startIndex.advanced(by: index)...].to(UInt8.self))
+                index += 1
+                var receivedPublicKeyDataX = completeRequest.subdata(in: index..<(index+xCoorSize))
+                receivedPublicKeyDataX.reverse() // change to big endian
+                index += xCoorSize
+                
+                // get y-coordinate
+                let yCoorSize = Int(completeRequest[completeRequest.startIndex.advanced(by: index)...].to(UInt8.self))
+                index += 1
+                var receivedPublicKeyDataY = completeRequest.subdata(in: index..<(index+yCoorSize))
+                receivedPublicKeyDataY.reverse() // change to big endian
+                index += yCoorSize
+                
+                // put the coordinates together
+                var receivedPublicKeyData = receivedPublicKeyDataX
+                receivedPublicKeyData.append(receivedPublicKeyDataY)
+                
+                self.securityManager.generateSharedSecret(receivedPublicKeyData: receivedPublicKeyData)
+                guard var publicKeyX = self.securityManager.getGeneratedPublicKeyX(),
+                      var publicKeyY = self.securityManager.getGeneratedPublicKeyY()
+                else {
+                    respond(to: .keyExchangeECDH, with: .procedureNotApplicable)
+                    break
+                }
+                
+                publicKeyX.reverse() // send as little endian
+                publicKeyY.reverse() // send as little endian
+                
+                var response = Data(ACControlPointOpcode.keyExchangeECDHResponse.rawValue)
+                response.append(keyID)
+                response.append(UInt8(publicKeyX.count))
+                response.append(contentsOf: publicKeyX)
+                response.append(UInt8(publicKeyY.count))
+                response.append(contentsOf: publicKeyY)
+                sendResponse(response)
+            case .keyExchangeECDHConfirmationCode:
+                guard completeRequest.count == 35 else {
+                    respond(to: .keyExchangeECDHConfirmationCode, with: .invalidOperand)
+                    break
+                }
+                
+                let keyID = completeRequest[completeRequest.startIndex.advanced(by: index)...].to(KeyID.self)
+                index += 2
+                
+                guard keyID == delegate?.ecdhKeyID else {
+                    respond(to: .keyExchangeECDHConfirmationCode, with: .procedureNotApplicable)
+                    break
+                }
+                
+                let keyConfirmationCodeReceived = completeRequest.subdata(in: index..<completeRequest.count)
+                
+                self.securityManager.keyConfirmationCodeReceivedLittleEndian = keyConfirmationCodeReceived
+                guard let keyConfirmationCode = self.securityManager.calculateGeneratedConfirmationCodeInLittleEndian() else {
+                    respond(to: .keyExchangeECDHConfirmationCode, with: .procedureNotCompleted)
+                    break
+                }
+                
+                var response = Data(ACControlPointOpcode.keyExchangeECDHConfirmationCodeResponse.rawValue)
+                response.append(keyID)
+                response.append(keyConfirmationCode)
+                sendResponse(response)
+            case .keyExchangeECDHConfirmationRandomNumber:
+                guard completeRequest.count == 35 else {
+                    respond(to: .keyExchangeECDHConfirmationRandomNumber, with: .invalidOperand)
+                    break
+                }
+
+                let keyID = completeRequest[completeRequest.startIndex.advanced(by: index)...].to(KeyID.self)
+                index += 2
+                
+                guard keyID == delegate?.ecdhKeyID else {
+                    respond(to: .keyExchangeECDHConfirmationRandomNumber, with: .procedureNotApplicable)
+                    break
+                }
+                
+                let confirmationRandomNumber = completeRequest.subdata(in: index..<completeRequest.count)
+                let (calculatedConfirmationCode, validated) = self.securityManager.calculateKeyConfirmationReceivedLittleEndian(receivedRandomNumberLittleEndian: confirmationRandomNumber)
+
+                guard validated else {
+                    respond(to: .keyExchangeECDHConfirmationRandomNumber, with: .invalidKeyExchangeConfirmationCode)
+                    break
+                }
+                let randomNumber = self.securityManager.generatedRandomNumberData
+                var response = Data(ACControlPointOpcode.keyExchangeECDHConfirmationRandomNumberResponse.rawValue)
+                response.append(keyID)
+                response.append(contentsOf: randomNumber)
+                sendResponse(response)
+            case .keyExchangeKDF:
+                guard completeRequest.count == 3 else {
+                    respond(to: .keyExchangeKDF, with: .invalidOperand)
+                    break
+                }
+                
+                let keyID = completeRequest[completeRequest.startIndex.advanced(by: index)...].to(KeyID.self)
+                index += 2
+
+                guard keyID == delegate?.ecdhKeyID else {
+                    respond(to: .keyExchangeKDF, with: .procedureNotApplicable)
+                    break
+                }
+                
+                securityManager.configuration.keyDerivationFunctionConfiguration  = SecurityManager.Configuration.KeyDerivationFunctionConfiguration(keyDerivationFunction: .hkdfSHA256, info: "tidepool".data(using: .utf8)!)
+                guard var salt = securityManager.configuration.keyDerivationFunctionConfiguration?.salt,
+                      var info = securityManager.configuration.keyDerivationFunctionConfiguration?.info
+                else {
+                    respond(to: .keyExchangeKDF, with: .procedureNotCompleted)
+                    break
+                }
+                
+                let success = securityManager.derivateSharedKey()
+                guard success else {
+                    respond(to: .keyExchangeKDF, with: .procedureNotCompleted)
+                    break
+                }
+                                
+                let saltSize: UInt8 = UInt8(salt.count)
+                salt.reverse() // send as little endian
+                let infoSize: UInt8 = UInt8(info.count)
+                info.reverse() // send as little endian
+                
+                var response = Data(ACControlPointOpcode.keyExchangeKDFResponse.rawValue)
+                response.append(keyID)
+                response.append(saltSize)
+                response.append(salt)
+                response.append(infoSize)
+                response.append(info)
+                sendResponse(response)
+            case .setClientNonceFixed:
+                guard completeRequest.count >= 4 else {
+                    respond(to: .setClientNonceFixed, with: .invalidOperand)
+                    break
+                }
+                
+                let keyID = completeRequest[completeRequest.startIndex.advanced(by: index)...].to(KeyID.self)
+                index += 2
+
+                guard keyID == delegate?.algorithmKeyID else {
+                    respond(to: .setClientNonceFixed, with: .procedureNotApplicable)
+                    break
+                }
+                
+                let fixedNonce = completeRequest.subdata(in: index..<completeRequest.count)
+                
+                securityManager.configuration.receivedIVFixedField = fixedNonce
+                respondWithSuccess(to: .setClientNonceFixed)
+            case .getATTMTU:
+                var response = Data(ACControlPointOpcode.attMTUResponse.rawValue)
+                response.append(UInt16(maxRequestSize+1)) // adding segmentation header
+                sendResponse(response)
+            default:
+                log.debug("Command not supported")
+                return CBATTError.Code.commandNotSupported
+            }
+        case .failure(let error):
+            log.debug("segmentation error: %{public}@", error.localizedDescription)
+        }
+        return .success
+    }
+    
+    func generateData(from uuidMap: [[CBUUID: ResourceHandle]]) -> Data {
+        var data = Data()
+        
+        for serviceMap in uuidMap {
+            guard let serviceDetails = serviceMap.first else { continue }
+            
+            data.append(AttributeType.primaryService.rawValue)
+            data.append(serviceDetails.value)
+            let cbUUID = serviceDetails.key
+            let length: UInt8 = UInt8(cbUUID.uuidString.count)/2
+            
+            guard length == 2,
+                  let uuidValue = UInt16(cbUUID.uuidString, radix: 16)
+            else {
+                fatalError("cbUUID greater than 16 bits not supported")
+            }
+            data.append(length)
+            data.append(uuidValue)
+            
+            let serviceMap = serviceMap.dropFirst(1)
+            guard !serviceMap.isEmpty else { continue }
+            
+            data.append(UInt8(serviceMap.count))
+            for characteristicDetails in serviceMap {
+                data.append(AttributeType.characteristicValue.rawValue)
+                data.append(characteristicDetails.value)
+                
+                let cbUUID = characteristicDetails.key
+                let length: UInt8 = UInt8(cbUUID.uuidString.count)/2
+                guard length == 2,
+                      let uuidValue = UInt16(cbUUID.uuidString, radix: 16)
+                else {
+                    fatalError("cbUUID greater than 16 bits not supported")
+                }
+                data.append(length)
+                data.append(uuidValue)
+            }
+        }
+        
+        return data
+    }
+        
+    public func respondWithSuccess(to requestOpcode: ACControlPointOpcode) {
+        respond(to: requestOpcode, with: .success)
+    }
+    
+    public func respond(to requestOpcode: ACControlPointOpcode, with responseCode: ACControlPointResponseCode) {
+        ConsoleOut.shared.logMessage(message: "\(#function) requestOpcode: \(requestOpcode) responseCode: \(responseCode)")
+        var response = Data(ACControlPointOpcode.responseCode.rawValue)
+        response.append(requestOpcode.rawValue)
+        response.append(responseCode.rawValue)
+        sendResponse(response)
+    }
+    
+    public func sendResponse(_ response: Data) {
+        let responseArray = segmentPayload(response)
+
+        for response in responseArray {
+            messageQueue.addQueueItem(
+                UUIDValuePair(
+                    uuid: ACCharacteristicUUID.controlPoint.cbUUID,
+                    value: response
+                )
+            )
+        }
+    }
+}
+
+// MARK: - Support Client Implementation
+public class ACControlPointDataHandler: SegmentationHandler, ControlPoint {
     private let log = OSLog(category: "ACControlPoint")
     
     private(set) public var maxRequestSize: Int
@@ -23,7 +461,7 @@ public class ACControlPoint: SegmentationHandler, ControlPoint {
 
     public var certificateHandler: ((_ certificateNonce: Int) -> Void)?
     
-    public var storedResponses: [Data] = []
+    public var storedPayloads: [Data] = []
     
     public var lockedSegmentCounter: Locked<UInt8> = Locked(0)
 
@@ -41,8 +479,8 @@ public class ACControlPoint: SegmentationHandler, ControlPoint {
     }
     
     //MARK: - Authorization Control Control Point Responses
-    public func handleSegmentedResponse(_ response: Data) -> (result: DeviceCommResult<Void>, completion: Any?) {
-        let result = checkResponseSegment(response)
+    public func handleSegmentedResponse(_ response: Data) -> (result: DeviceCommResult<Any?>, completion: Any?) {
+        let result = checkSegmentedPayload(response)
         switch result {
         case .success(let completeResponse):
             log.debug("complete control point response %{public}@", completeResponse.hexadecimalString)
@@ -52,7 +490,7 @@ public class ACControlPoint: SegmentationHandler, ControlPoint {
         }
     }
 
-    public func handleCompleteResponse(_ completeResponse: Data) -> (result: DeviceCommResult<Void>, completion: Any?) {
+    public func handleCompleteResponse(_ completeResponse: Data) -> (result: DeviceCommResult<Any?>, completion: Any?) {
         // extract opcode
         guard let opcode = ACControlPointOpcode(rawValue: completeResponse[completeResponse.startIndex...].to(ACControlPointOpcode.RawValue.self)) else {
             return (.failure(.opcodeUnknown(completeResponse.hexadecimalString)), nil)
@@ -74,7 +512,7 @@ public class ACControlPoint: SegmentationHandler, ControlPoint {
                 if requestOpcode == .invalidateKey {
                     securityManager.deleteStoredKey()
                 }
-                return (.success, completion)
+                return (.success(nil), completion)
             case .opcodeNotSupported:
                 return (.failure(.opcodeNotSupported), completion)
             case .invalidOperand:
@@ -96,10 +534,10 @@ public class ACControlPoint: SegmentationHandler, ControlPoint {
             }
         case .acsFeatureResponse:
             let completion = completeProcedure(ACControlPointOpcode.getACSFeature)
-            let result = ACFeature.handleResponse(completeResponse)
+            let result = ACFeatureDataHandler.handleResponse(completeResponse)
             switch result {
-            case .success(_):
-                return (.success, completion)
+            case .success(let features):
+                return (.success(features), completion)
             case .failure(let error):
                 return (.failure(error), completion)
             }
@@ -109,7 +547,7 @@ public class ACControlPoint: SegmentationHandler, ControlPoint {
             switch result {
             case .success(let uuidToHandleMap):
                 self.uuidToHandleMap = uuidToHandleMap
-                return (.success , completion)
+                return (.success(uuidToHandleMap), completion)
             case .failure(let error):
                 return (.failure(error), completion)
             }
@@ -129,7 +567,7 @@ public class ACControlPoint: SegmentationHandler, ControlPoint {
             case .success:
                 queueSetClientFixedNonceRequest()
                 queueGetPHDCertificateNonce()
-                return (.success, completion)
+                return (.success(nil), completion)
             default:
                 return (result, completion)
             }
@@ -142,7 +580,7 @@ public class ACControlPoint: SegmentationHandler, ControlPoint {
             switch result {
             case .success:
                 queueECDHConfirmationRandomNumberRequest()
-                return (.success, completion)
+                return (.success(nil), completion)
             default:
                 return (result, completion)
             }
@@ -158,7 +596,7 @@ public class ACControlPoint: SegmentationHandler, ControlPoint {
             switch result {
             case .success:
                 guard didQueueECDHConfirmationCodeRequest() else { return (.failure(.deviceNotReady), completion) }
-                return (.success, completion)
+                return (.success(nil), completion)
             default:
                 return (result, completion)
             }
@@ -170,7 +608,7 @@ public class ACControlPoint: SegmentationHandler, ControlPoint {
             let attMTU = Int(completeResponse[completeResponse.startIndex.advanced(by: 1)...].to(UInt16.self))
             let newMaxRequestSize = (attMTU - 1) // Minus 1 for segmentation header
             maxRequestSizeUpdatedHandler?(newMaxRequestSize)
-            return (.success, completion)
+            return (.success(attMTU), completion)
         case .phdCertificateNonceResponse:
             let completion = completeProcedure(ACControlPointOpcode.getPHDCertificateNonce)
             guard completeResponse.count == 3 else {
@@ -178,45 +616,16 @@ public class ACControlPoint: SegmentationHandler, ControlPoint {
             }
             let certificateNonce = Int(completeResponse[completeResponse.startIndex.advanced(by: 1)...].to(UInt16.self))
             certificateHandler?(certificateNonce)
-            return (.success, completion)
+            return (.success(nil), completion)
         default:
             log.error("control point response not currently implemented")
             return (.failure(.opcodeNotSupported), nil)
         }
-
-    }
-
-    func writeACControlPointRequest(_ peripherialManager: PeripheralManager, requestSegment: Data, timeout: TimeInterval) throws {
-        try peripherialManager.writeACControlPointRequest(requestSegment, timeout: timeout)
-    }
-
-    func createStartKeyExchangeRequest() -> Data {
-        var operand = Data(securityManager.configuration.ecdhKeyID)
-        operand.append(StartKeyExchangeConfirmationMethod.oobNumberStatic.rawValue)
-        operand.append(StartKeyExchangeConfirmationAction.staticAction.rawValue)
-
-        return ACControlPoint.buildControlPointRequest(opcode: ACControlPointOpcode.startKeyExchange, operand: operand)
-    }
-
-    func createECDHConfirmationRandomNumberRequest() -> Data {
-        var operand = Data(securityManager.configuration.ecdhKeyID)
-        // BT transmittion expects little endian byte order
-        operand.append(Data(securityManager.clientRandomNumberData.reversed()))
-
-        return ACControlPoint.buildControlPointRequest(opcode: ACControlPointOpcode.keyExchangeECDHConfirmationRandomNumber, operand: operand)
-    }
-
-    public func queueStartKeyExchangeRequest(completion: ProcedureResultCompletion? = nil) {
-        appendToRequestQueue(createStartKeyExchangeRequest(), completion: completion)
-    }
-
-    func queueECDHConfirmationRandomNumberRequest(completion: ProcedureResultCompletion? = nil) {
-        appendToRequestQueue(createECDHConfirmationRandomNumberRequest(), completion: completion)
     }
 }
 
 //MARK: - Authorization Control Control Point Requests
-extension ACControlPoint: RequestHandler {
+extension ACControlPointDataHandler: RequestHandler {
     public func sendNextRequest(_ peripherialManager: PeripheralManager, timeout: TimeInterval) {
         guard !procedureRunning else {
             return
@@ -234,7 +643,7 @@ extension ACControlPoint: RequestHandler {
             return
         }
 
-        let requestSegments = segmentRequest(request)
+        let requestSegments = segmentPayload(request)
         requestSegments.forEach { requestSegment in
             do {
                 try writeACControlPointRequest(peripherialManager, requestSegment: requestSegment, timeout: timeout)
@@ -243,6 +652,10 @@ extension ACControlPoint: RequestHandler {
                 return
             }
         }
+    }
+    
+    func writeACControlPointRequest(_ peripherialManager: PeripheralManager, requestSegment: Data, timeout: TimeInterval) throws {
+        try peripherialManager.writeACControlPointRequest(requestSegment, timeout: timeout)
     }
 
     public func procedureIDForNextRequest() -> ProcedureID? {
@@ -296,50 +709,70 @@ extension ACControlPoint: RequestHandler {
     }
 
     //MARK: - Create Request
-    private func createGetACSFeatureRequest() -> Data {
-        ACFeature.request
+    public func createGetACSFeatureRequest() -> Data {
+        ACFeatureDataHandler.request
     }
 
-    private func createGetResourceHandleToUUIDMapRequest() -> Data {
+    public func createGetResourceHandleToUUIDMapRequest() -> Data {
         ResourceHandleToUUIDMap.request
     }
 
-    private func createGetRestrictionMapIDListRequest() -> Data {
+    public func createGetRestrictionMapIDListRequest() -> Data {
         RestrictionMapIDList.request
     }
 
-    private func createGetAllActiveDescriptorsRequest() -> Data {
-        ACControlPoint.buildControlPointRequest(opcode: ACControlPointOpcode.getAllActiveDescriptors)
+    public func createGetAllActiveDescriptorsRequest() -> Data {
+        ACControlPointDataHandler.buildControlPointRequest(opcode: ACControlPointOpcode.getAllActiveDescriptors)
     }
     
-    func createECDHPublicKeyRequest(certificateData: Data) -> Data {
+    public func createECDHPublicKeyRequest() -> Data? {
+        KeyExchangeECDH.ecdhRequestUncompressedPlain(securityManager: securityManager)
+    }
+    
+    public func createECDHPublicKeyRequest(certificateData: Data) -> Data {
         KeyExchangeECDH.ecdhRequestCertificate(securityManager: securityManager, certificateData: certificateData)
     }
 
-    func createECDHConfirmationCodeRequest() -> Data? {
+    public func createECDHConfirmationCodeRequest() -> Data? {
         KeyExchangeECDH.ecdhConfirmationCodeRequest(securityManager: securityManager)
     }
 
-    func createGetATTMTURequest() -> Data {
-        ACControlPoint.buildControlPointRequest(opcode: ACControlPointOpcode.getATTMTU)
+    public func createGetATTMTURequest() -> Data {
+        ACControlPointDataHandler.buildControlPointRequest(opcode: ACControlPointOpcode.getATTMTU)
     }
 
-    func createKeyExchangeKDFRequest() -> Data {
+    public func createKeyExchangeKDFRequest() -> Data {
         let operand = Data(securityManager.configuration.ecdhKeyID)
-        return ACControlPoint.buildControlPointRequest(opcode: ACControlPointOpcode.keyExchangeKDF, operand: operand)
+        return ACControlPointDataHandler.buildControlPointRequest(opcode: ACControlPointOpcode.keyExchangeKDF, operand: operand)
     }
-
-    func createSetClientNonceFixedRequest() -> Data {
+    
+    public func createSetClientNonceFixedRequest() -> Data {
         KeyExchangeECDH.setClientFixedNonce(securityManager: securityManager)
     }
 
-    func createGetPHDCertificateNonceRequest() -> Data {
-        ACControlPoint.buildControlPointRequest(opcode: ACControlPointOpcode.getPHDCertificateNonce)
+    public func createGetPHDCertificateNonceRequest() -> Data {
+        ACControlPointDataHandler.buildControlPointRequest(opcode: ACControlPointOpcode.getPHDCertificateNonce)
     }
 
-    func createInvalidateKeyRequest() -> Data {
+    public func createInvalidateKeyRequest() -> Data {
         let operand = Data(securityManager.configuration.ecdhKeyID)
-        return ACControlPoint.buildControlPointRequest(opcode: ACControlPointOpcode.invalidateKey, operand: operand)
+        return ACControlPointDataHandler.buildControlPointRequest(opcode: ACControlPointOpcode.invalidateKey, operand: operand)
+    }
+    
+    public func createStartKeyExchangeRequest() -> Data {
+        var operand = Data(securityManager.configuration.ecdhKeyID)
+        operand.append(StartKeyExchangeConfirmationMethod.oobNumberStatic.rawValue)
+        operand.append(StartKeyExchangeConfirmationAction.staticAction.rawValue)
+
+        return ACControlPointDataHandler.buildControlPointRequest(opcode: ACControlPointOpcode.startKeyExchange, operand: operand)
+    }
+
+    public func createECDHConfirmationRandomNumberRequest() -> Data {
+        var operand = Data(securityManager.configuration.ecdhKeyID)
+        // BT transmittion expects little endian byte order
+        operand.append(Data(securityManager.generatedRandomNumberData.reversed()))
+
+        return ACControlPointDataHandler.buildControlPointRequest(opcode: ACControlPointOpcode.keyExchangeECDHConfirmationRandomNumber, operand: operand)
     }
 
     //MARK: - Queue Request
@@ -375,6 +808,14 @@ extension ACControlPoint: RequestHandler {
     
     public func queueECDHPublicKeyRequest(certificateData: Data, completion: ProcedureResultCompletion? = nil) {
         appendToRequestQueue(createECDHPublicKeyRequest(certificateData: certificateData), completion: completion)
+    }
+
+    public func queueStartKeyExchangeRequest(completion: ProcedureResultCompletion? = nil) {
+        appendToRequestQueue(createStartKeyExchangeRequest(), completion: completion)
+    }
+
+    func queueECDHConfirmationRandomNumberRequest(completion: ProcedureResultCompletion? = nil) {
+        appendToRequestQueue(createECDHConfirmationRandomNumberRequest(), completion: completion)
     }
 }
 

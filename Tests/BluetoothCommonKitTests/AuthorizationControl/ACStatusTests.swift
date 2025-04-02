@@ -19,7 +19,7 @@ class ACStatusTests: XCTestCase {
         expectedStatusValue.append(expectedStatus.rawValue)
         expectedStatusValue.append(expectedCurrentRestrictionMapID)
         
-        let parsedValue = ACStatus.handleData(expectedStatusValue)
+        let parsedValue = ACStatusDataHandler.handleData(expectedStatusValue)
         XCTAssertNotNil(parsedValue)
         if let parsedValue = parsedValue {
             XCTAssertEqual(parsedValue.status, expectedStatus)
@@ -37,7 +37,7 @@ class ACStatusTests: XCTestCase {
         expectedStatusValue.append(expectedCurrentRestrictionMapID)
         expectedStatusValue.append(extraData)
         
-        let parsedValue = ACStatus.handleData(expectedStatusValue)
+        let parsedValue = ACStatusDataHandler.handleData(expectedStatusValue)
         XCTAssertNil(parsedValue)
     }
 }

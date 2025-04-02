@@ -7,14 +7,14 @@
 //
 
 import Foundation
+import CoreBluetooth
 import os.log
 
-private let log = OSLog(category: "ACFeature")
-
-struct ACFeature: RequestHandler {
+public struct ACFeatureDataHandler: RequestHandler {
+    private static let log = OSLog(category: "ACFeature")
     
     // dictionary keys
-    enum ACFeatureKey: String {
+    public enum ACFeatureKey: String {
         case confirmationInputCapa
         case confirmationInputSize
         case confirmationOutputCapa
@@ -25,11 +25,11 @@ struct ACFeature: RequestHandler {
         case qualityOfProtection
     }
 
-    static var request: Data {
-        return ACFeature.buildControlPointRequest(opcode: ACControlPointOpcode.getACSFeature)
+    static public var request: Data {
+        return ACFeatureDataHandler.buildControlPointRequest(opcode: ACControlPointOpcode.getACSFeature)
     }
     
-    static func handleResponse(_ response: Data) -> Result<FeaturesFlag, DeviceCommError> {
+    static public func handleResponse(_ response: Data) -> Result<FeaturesFlag, DeviceCommError> {
         let expectedResponseLength: Int = 23
         guard response.count == expectedResponseLength else { // includes opcode
             log.error("AC feature response is an unexpected size: (expect %d, actual, %d)", expectedResponseLength, response.count)
@@ -76,31 +76,35 @@ struct ACFeature: RequestHandler {
     }
 }
 
-struct FeaturesFlag: OptionSet, Hashable, CustomStringConvertible {
-    let rawValue: UInt32
+public struct FeaturesFlag: OptionSet, Hashable, CustomStringConvertible, Sendable {
+    public let rawValue: UInt32
+    
+    public init(rawValue: UInt32) {
+        self.rawValue = rawValue
+    }
 
-    static let setInformationSecurityControlsAvailabilitySupported = FeaturesFlag(rawValue: 1 << 0)
-    static let descriptorsSupported = FeaturesFlag(rawValue: 1 << 1)
-    static let multipleRestrictionMapsSupported  = FeaturesFlag(rawValue: 1 << 2)
-    static let resourceHandleToUUIDMapSupported = FeaturesFlag(rawValue: 1 << 3)
-    static let initiatePairingSupported = FeaturesFlag(rawValue: 1 << 4)
-    static let keyExchangeOOBSupported = FeaturesFlag(rawValue: 1 << 5)
-    static let keyExchangeECDHSupported = FeaturesFlag(rawValue: 1 << 6)
-    static let keyExchangeKDFSupported = FeaturesFlag(rawValue: 1 << 7)
-    static let keyURISupported = FeaturesFlag(rawValue: 1 << 8)
-    static let invalidateEstablishedSecuritySupported = FeaturesFlag(rawValue: 1 << 9)
-    static let attMTUSupported = FeaturesFlag(rawValue: 1 << 10)
-    static let protectedResourceWriteSupported = FeaturesFlag(rawValue: 1 << 11)
-    static let protectedResourceReadSupported = FeaturesFlag(rawValue: 1 << 12)
-    static let protectedResourceNotificationSupported = FeaturesFlag(rawValue: 1 << 13)
-    static let protectedResourceIndicationSupported = FeaturesFlag(rawValue: 1 << 14)
-    static let keyFormatServerManufacturerSpecificSupported = FeaturesFlag(rawValue: 1 << 15)
-    static let keyFormatClientManufacturerSpecificSupported = FeaturesFlag(rawValue: 1 << 16)
-    static let keyFormatServerUncompressedPlainSupported = FeaturesFlag(rawValue: 1 << 17)
-    static let keyFormatClientUncompressedPlainSupported = FeaturesFlag(rawValue: 1 << 18)
-    static let keyFormatServerX509Supported = FeaturesFlag(rawValue: 1 << 19)
-    static let keyFormatClientX509Supported = FeaturesFlag(rawValue: 1 << 20)
-    static let allZeros = FeaturesFlag([])
+    static public let setInformationSecurityControlsAvailabilitySupported = FeaturesFlag(rawValue: 1 << 0)
+    static public let descriptorsSupported = FeaturesFlag(rawValue: 1 << 1)
+    static public let multipleRestrictionMapsSupported  = FeaturesFlag(rawValue: 1 << 2)
+    static public let resourceHandleToUUIDMapSupported = FeaturesFlag(rawValue: 1 << 3)
+    static public let initiatePairingSupported = FeaturesFlag(rawValue: 1 << 4)
+    static public let keyExchangeOOBSupported = FeaturesFlag(rawValue: 1 << 5)
+    static public let keyExchangeECDHSupported = FeaturesFlag(rawValue: 1 << 6)
+    static public let keyExchangeKDFSupported = FeaturesFlag(rawValue: 1 << 7)
+    static public let keyURISupported = FeaturesFlag(rawValue: 1 << 8)
+    static public let invalidateEstablishedSecuritySupported = FeaturesFlag(rawValue: 1 << 9)
+    static public let attMTUSupported = FeaturesFlag(rawValue: 1 << 10)
+    static public let protectedResourceWriteSupported = FeaturesFlag(rawValue: 1 << 11)
+    static public let protectedResourceReadSupported = FeaturesFlag(rawValue: 1 << 12)
+    static public let protectedResourceNotificationSupported = FeaturesFlag(rawValue: 1 << 13)
+    static public let protectedResourceIndicationSupported = FeaturesFlag(rawValue: 1 << 14)
+    static public let keyFormatServerManufacturerSpecificSupported = FeaturesFlag(rawValue: 1 << 15)
+    static public let keyFormatClientManufacturerSpecificSupported = FeaturesFlag(rawValue: 1 << 16)
+    static public let keyFormatServerUncompressedPlainSupported = FeaturesFlag(rawValue: 1 << 17)
+    static public let keyFormatClientUncompressedPlainSupported = FeaturesFlag(rawValue: 1 << 18)
+    static public let keyFormatServerX509Supported = FeaturesFlag(rawValue: 1 << 19)
+    static public let keyFormatClientX509Supported = FeaturesFlag(rawValue: 1 << 20)
+    static public let allZeros = FeaturesFlag([])
 
     static let debugDescriptions: [FeaturesFlag:String] = {
         var descriptions = [FeaturesFlag:String]()
@@ -140,16 +144,20 @@ struct FeaturesFlag: OptionSet, Hashable, CustomStringConvertible {
     }
 }
 
-struct QualityOfProtection: OptionSet, Hashable, CustomStringConvertible {
-    let rawValue: UInt16
+public struct QualityOfProtection: OptionSet, Hashable, CustomStringConvertible, Sendable {
+    public let rawValue: UInt16
     
-    static let confidentiality  = QualityOfProtection(rawValue: 1 << 0)
-    static let integrity = QualityOfProtection(rawValue: 1 << 1)
-    static let authentication = QualityOfProtection(rawValue: 1 << 2)
-    static let authorization = QualityOfProtection(rawValue: 1 << 3)
-    static let nonRepudiation = QualityOfProtection(rawValue: 1 << 4)
-    static let manufactureSpecificControlsUsed = QualityOfProtection(rawValue: 1 << 5)
-    static let allZeros = QualityOfProtection([])
+    public init(rawValue: UInt16) {
+        self.rawValue = rawValue
+    }
+    
+    static public let confidentiality  = QualityOfProtection(rawValue: 1 << 0)
+    static public let integrity = QualityOfProtection(rawValue: 1 << 1)
+    static public let authentication = QualityOfProtection(rawValue: 1 << 2)
+    static public let authorization = QualityOfProtection(rawValue: 1 << 3)
+    static public let nonRepudiation = QualityOfProtection(rawValue: 1 << 4)
+    static public let manufactureSpecificControlsUsed = QualityOfProtection(rawValue: 1 << 5)
+    static public let allZeros = QualityOfProtection([])
     
     static let debugDescriptions: [QualityOfProtection:String] = {
         var descriptions = [QualityOfProtection:String]()
@@ -174,23 +182,27 @@ struct QualityOfProtection: OptionSet, Hashable, CustomStringConvertible {
     }
 }
 
-struct OOBCapability: OptionSet, Hashable, CustomStringConvertible {
-    let rawValue: UInt16
+public struct OOBCapability: OptionSet, Hashable, CustomStringConvertible, Sendable {
+    public let rawValue: UInt16
+    
+    public init(rawValue: UInt16) {
+        self.rawValue = rawValue
+    }
 
-    static let other = OOBCapability(rawValue: 1 << 0)
-    static let uri = OOBCapability(rawValue: 1 << 1)
-    static let machineReadableCode2D = OOBCapability(rawValue: 1 << 2)
-    static let barCode = OOBCapability(rawValue: 1 << 3)
-    static let nfc  = OOBCapability(rawValue: 1 << 4)
-    static let number = OOBCapability(rawValue: 1 << 5)
-    static let string = OOBCapability(rawValue: 1 << 6)
-    static let certificateX509 = OOBCapability(rawValue: 1 << 7)
-    static let onBox = OOBCapability(rawValue: 1 << 11)
-    static let insideBox = OOBCapability(rawValue: 1 << 12)
-    static let onPaper = OOBCapability(rawValue: 1 << 13)
-    static let insideManual = OOBCapability(rawValue: 1 << 14)
-    static let onDevice = OOBCapability(rawValue: 1 << 15)
-    static let allZeros = OOBCapability([])
+    static public let other = OOBCapability(rawValue: 1 << 0)
+    static public let uri = OOBCapability(rawValue: 1 << 1)
+    static public let machineReadableCode2D = OOBCapability(rawValue: 1 << 2)
+    static public let barCode = OOBCapability(rawValue: 1 << 3)
+    static public let nfc  = OOBCapability(rawValue: 1 << 4)
+    static public let number = OOBCapability(rawValue: 1 << 5)
+    static public let string = OOBCapability(rawValue: 1 << 6)
+    static public let certificateX509 = OOBCapability(rawValue: 1 << 7)
+    static public let onBox = OOBCapability(rawValue: 1 << 11)
+    static public let insideBox = OOBCapability(rawValue: 1 << 12)
+    static public let onPaper = OOBCapability(rawValue: 1 << 13)
+    static public let insideManual = OOBCapability(rawValue: 1 << 14)
+    static public let onDevice = OOBCapability(rawValue: 1 << 15)
+    static public let allZeros = OOBCapability([])
 
     static let debugDescriptions: [OOBCapability:String] = {
         var descriptions = [OOBCapability:String]()
@@ -222,12 +234,16 @@ struct OOBCapability: OptionSet, Hashable, CustomStringConvertible {
     }
 }
 
-struct ConfirmationInputCapability: OptionSet, Hashable, CustomStringConvertible {
-    let rawValue: UInt16
+public struct ConfirmationInputCapability: OptionSet, Hashable, CustomStringConvertible, Sendable {
+    public let rawValue: UInt16
     
-    static let push = ConfirmationInputCapability(rawValue: 1 << 0)
-    static let inputNumeric = ConfirmationInputCapability(rawValue: 1 << 2)
-    static let allZeros = ConfirmationInputCapability([])
+    public init(rawValue: UInt16) {
+        self.rawValue = rawValue
+    }
+    
+    static public let push = ConfirmationInputCapability(rawValue: 1 << 0)
+    static public let inputNumeric = ConfirmationInputCapability(rawValue: 1 << 2)
+    static public let allZeros = ConfirmationInputCapability([])
     
     static let debugDescriptions: [ConfirmationInputCapability:String] = {
         var descriptions = [ConfirmationInputCapability:String]()
@@ -248,12 +264,16 @@ struct ConfirmationInputCapability: OptionSet, Hashable, CustomStringConvertible
     }
 }
 
-struct ConfirmationOutputCapability: OptionSet, Hashable, CustomStringConvertible {
-    let rawValue: UInt16
+public struct ConfirmationOutputCapability: OptionSet, Hashable, CustomStringConvertible, Sendable {
+    public let rawValue: UInt16
     
-    static let beep = ConfirmationOutputCapability(rawValue: 1 << 0)
-    static let outputNumeric = ConfirmationOutputCapability(rawValue: 1 << 3)
-    static let allZeros = ConfirmationOutputCapability([])
+    public init(rawValue: UInt16) {
+        self.rawValue = rawValue
+    }
+    
+    static public let beep = ConfirmationOutputCapability(rawValue: 1 << 0)
+    static public let outputNumeric = ConfirmationOutputCapability(rawValue: 1 << 3)
+    static public let allZeros = ConfirmationOutputCapability([])
     
     static let debugDescriptions: [ConfirmationOutputCapability:String] = {
         var descriptions = [ConfirmationOutputCapability:String]()

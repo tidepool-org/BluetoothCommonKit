@@ -24,7 +24,6 @@ public enum DeviceInfoCharacteristicUUID: String, CBUUIDDetails {
     case firmwareRevisionString = "2a26"
     
     // Read
-    // Currently not available
     case hardwareRevisionString = "2a27"
     
     // Read
@@ -38,6 +37,9 @@ public enum DeviceInfoCharacteristicUUID: String, CBUUIDDetails {
     
     // Read
     case pnpID = "2a50"
+    
+    // Read
+    case uniqueDeviceIdentifierString = "7f3a" // actual value is unknown
 
     var serviceName: String { "deviceInformation"}
 
@@ -53,6 +55,7 @@ public enum DeviceInfoCharacteristicUUID: String, CBUUIDDetails {
         case .systemID: return serviceName + ".systemID"
         case .regulatoryCertificationDataList: return serviceName + ".regulatoryCertificationDataList"
         case .pnpID: return serviceName + ".pnpID"
+        case .uniqueDeviceIdentifierString: return serviceName + ".uniqueDeviceIdentifierString"
         }
     }
 

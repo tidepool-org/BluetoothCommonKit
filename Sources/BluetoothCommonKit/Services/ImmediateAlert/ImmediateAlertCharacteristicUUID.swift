@@ -19,12 +19,6 @@ public enum ImmediateAlertCharacteristicUUID: String, CBUUIDDetails {
     public var properties: [CBUUIDProperties] { [.write] }
 }
 
-public enum AlertType: UInt8 {
-    case noAlert
-    case mildAlert
-    case highAlert
-}
-
 public struct ImmediateAlertService {
     static public func createBeepRequest() -> Data {
         return Data(AlertType.mildAlert.rawValue)

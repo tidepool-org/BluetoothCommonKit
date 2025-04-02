@@ -21,7 +21,7 @@ struct KeyDescriptor: RequestHandler {
         return KeyDescriptor.buildControlPointRequest(opcode: ACControlPointOpcode.getKeyDescriptor)
     }
     
-    static func handleResponse(_ response: Data, securityManager: SecurityManager) -> DeviceCommResult<Void> {
+    static func handleResponse(_ response: Data, securityManager: SecurityManager) -> DeviceCommResult<Any?> {
         var index = 1 // skip opcode
 
         while index < response.count {
@@ -79,8 +79,9 @@ struct KeyDescriptor: RequestHandler {
                     guard index + aesRecordHeaderSizeMin <= response.count else { return .failure(.invalidFormat) }
                     // algorithm parameters
                     // key ID
-                    _ = response[response.startIndex.advanced(by: index)...].to(KeyID.self)
+                    let keyID = response[response.startIndex.advanced(by: index)...].to(KeyID.self)
                     index += 2
+                    securityManager.configuration.algorithmKeyID = keyID //Test this
 
                     _ = MessageType(rawValue: response[response.startIndex.advanced(by: index)...].to(UInt8.self))
                     index += 1
@@ -105,11 +106,11 @@ struct KeyDescriptor: RequestHandler {
 
                         if nonceSizeOctetsFixed > 0 {
                             guard index + nonceSizeOctetsFixed <= response.count else { return .failure(.invalidFormat) }
-                            var serverIVFixedField = response.subdata(in: index..<index+nonceSizeOctetsFixed)
+                            var receivedIVFixedField = response.subdata(in: index..<index+nonceSizeOctetsFixed)
                             index += nonceSizeOctetsFixed
                             // change to big endian to be used within the security manager
-                            serverIVFixedField.reverse()
-                            securityManager.configuration.serverIVFixedField = serverIVFixedField
+                            receivedIVFixedField.reverse()
+                            securityManager.configuration.receivedIVFixedField = receivedIVFixedField
                         }
                     }
                 case .kdfKeyExchange:
@@ -128,11 +129,11 @@ struct KeyDescriptor: RequestHandler {
             }
         }
         
-        return .success
+        return .success(nil)
     }
 }
 
-enum KeyType: UInt8 {
+public enum KeyType: UInt8 {
     case oobKey
     case ecdh
     case kdfKeyExchange
@@ -143,7 +144,7 @@ enum KeyType: UInt8 {
     case aesGMAC
 }
 
-enum EllipticCurve: UInt8, Codable {
+public enum EllipticCurve: UInt8, Codable {
     case p256
     case p384
     case p512
@@ -172,7 +173,7 @@ enum EllipticCurve: UInt8, Codable {
     }
 }
 
-enum OOBMethod: UInt8 {
+public enum OOBMethod: UInt8 {
     case manufacturer
     case uri
     case machineReadableCode2D
@@ -180,12 +181,12 @@ enum OOBMethod: UInt8 {
     case nfc
 }
 
-enum MessageType: UInt8 {
+public enum MessageType: UInt8 {
     case profileDefinedParameter
     case protectedResourceValue
 }
 
-enum NonceType: UInt8, Codable {
+public enum NonceType: UInt8, Codable {
     case profileDefinedParameter
     case sequenceNumberEvenOdd
     case sequenceNumberDifferentFixedParts

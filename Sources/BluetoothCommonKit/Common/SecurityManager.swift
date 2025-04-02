@@ -34,9 +34,9 @@ public class SecurityManager {
     
     private let log = OSLog(category: "SecurityManager")
     
-    public var clientPrivateKey: SecKey?
+    public var generatedPrivateKey: SecKey?
     
-    private var serverPublicKey: SecKey?
+    private var counterpartPublicKey: SecKey?
     
     private var lockedConfiguration: Locked<Configuration>
     
@@ -52,9 +52,9 @@ public class SecurityManager {
         }
     }
     
-    private(set) var clientRandomNumberData: Data = Data((1...32).map { _ in UInt8.random(in: UInt8.min ... UInt8.max) })
+    private(set) var generatedRandomNumberData: Data = Data((1...32).map { _ in UInt8.random(in: UInt8.min ... UInt8.max) })
     
-    var keyConfirmationCodeServerLittleEndian: Data?
+    var keyConfirmationCodeReceivedLittleEndian: Data?
     
     public var applicationSecurityEstablished: Bool {
         return delegate?.sharedKeyData != nil
@@ -84,7 +84,7 @@ public class SecurityManager {
                             kSecPrivateKeyAttrs: [kSecAttrIsPermanent: false]] as [CFString : Any] as CFDictionary
         var error: Unmanaged<CFError>?
         
-        clientPrivateKey = SecKeyCreateRandomKey(attributes, &error)
+        generatedPrivateKey = SecKeyCreateRandomKey(attributes, &error)
         
         if error != nil {
             log.error("Private key creation failed %{public}@", error.debugDescription)
@@ -92,7 +92,7 @@ public class SecurityManager {
     }
     
     func generateRandomNumber() {
-        clientRandomNumberData = Data((1...32).map { _ in UInt8.random(in: UInt8.min...UInt8.max) })
+        generatedRandomNumberData = Data((1...32).map { _ in UInt8.random(in: UInt8.min...UInt8.max) })
     }
     
     func deleteStoredKey() {
@@ -101,33 +101,33 @@ public class SecurityManager {
         configuration.resetSequenceNumber()
     }
     
-    func generateNewClientNonceFixed() -> Data {
-        return configuration.generateNewClientNonceFixed()
+    func generateNewNonceFixed() -> Data {
+        return configuration.generateNewNonceFixed()
     }
     
     //MARK: - Key functions
-    public func generateSharedSecret(serverPublicKeyData: Data) {
+    public func generateSharedSecret(receivedPublicKeyData: Data) {
         var error: Unmanaged<CFError>?
         let publicAttributes: [String: Any] = [kSecAttrKeyType as String: kSecAttrKeyTypeECSECPrimeRandom,
                                                kSecAttrKeyClass as String: kSecAttrKeyClassPublic,
                                                kSecAttrKeySizeInBits as String: configuration.ellipticCurve.keySizeInBits,
                                                kSecPublicKeyAttrs as String: [kSecAttrIsPermanent: false]]
         
-        var tempServerKeyData = serverPublicKeyData
-        tempServerKeyData.insert(4, at: 0)
-        serverPublicKey = SecKeyCreateWithData(NSData(data: tempServerKeyData) as CFData, publicAttributes as CFDictionary, &error)
+        var tempReceivedKeyData = receivedPublicKeyData
+        tempReceivedKeyData.insert(4, at: 0)
+        counterpartPublicKey = SecKeyCreateWithData(NSData(data: tempReceivedKeyData) as CFData, publicAttributes as CFDictionary, &error)
         guard error == nil,
-              let clientPrivateKey = clientPrivateKey,
-              let serverPublicKey = serverPublicKey else
+              let generatedPrivateKey = generatedPrivateKey,
+              let counterpartPublicKey = counterpartPublicKey else
         {
-            log.error("Server public key creation failed %{public}@", error.debugDescription)
+            log.error("public key creation failed %{public}@", error.debugDescription)
             return
         }
         
         let dict: [String: Any] = [:]
-        delegate?.sharedKeyData = SecKeyCopyKeyExchangeResult(clientPrivateKey,
+        delegate?.sharedKeyData = SecKeyCopyKeyExchangeResult(generatedPrivateKey,
                                                               SecKeyAlgorithm.ecdhKeyExchangeStandard,
-                                                              serverPublicKey,
+                                                              counterpartPublicKey,
                                                               dict as CFDictionary,
                                                               &error) as Data?
         if error != nil {
@@ -177,61 +177,70 @@ public class SecurityManager {
         return publicKeyRep04XY.subdata(in: 1..<publicKeyRep04XY.count)
     }
     
-    // Client Key functions
-    public func getClientPublicKey() -> SecKey? {
-        return getPublicKey(clientPrivateKey)
+    var sharedKeyData: Data? {
+        get {
+            delegate?.sharedKeyData
+        }
+        set {
+            delegate?.sharedKeyData = newValue
+        }
     }
     
-    func getClientPublicKeyAsData() -> Data? {
-        guard let publicKey = getClientPublicKey() else {
+    // Generated Key functions
+    public func getGeneratedPublicKey() -> SecKey? {
+        return getPublicKey(generatedPrivateKey)
+    }
+    
+    func getGeneratedPublicKeyAsData() -> Data? {
+        guard let publicKey = getGeneratedPublicKey() else {
             return nil
         }
         return convertPublicKeyToData(publicKey)
     }
     
-    func getClientPublicKeyX() -> Data? {
-        guard let clientPublicKey = getClientPublicKeyAsData() else {
+    func getGeneratedPublicKeyX() -> Data? {
+        guard let publicKey = getGeneratedPublicKeyAsData() else {
             return nil
         }
-        let clientPublicKeyX = clientPublicKey.subdata(in: 0..<clientPublicKey.count/2)
-        return clientPublicKeyX
+        let publicKeyX = publicKey.subdata(in: 0..<publicKey.count/2)
+        return publicKeyX
     }
     
-    func getClientPublicKeyY() -> Data? {
-        guard let clientPublicKey = getClientPublicKeyAsData() else {
+    func getGeneratedPublicKeyY() -> Data? {
+        guard let publicKey = getGeneratedPublicKeyAsData() else {
             return nil
         }
-        let clientPublicKeyY = clientPublicKey.subdata(in: clientPublicKey.count/2..<clientPublicKey.count)
-        return clientPublicKeyY
+        let publicKeyY = publicKey.subdata(in: publicKey.count/2..<publicKey.count)
+        return publicKeyY
     }
     
-    // Server Key functions
-    func getServerPublicKeyAsData() -> Data? {
-        guard let publicKey = serverPublicKey else {
+    // Counterpart Key functions
+    func getCounterpartPublicKeyAsData() -> Data? {
+        guard let publicKey = counterpartPublicKey else {
             return nil
         }
         return convertPublicKeyToData(publicKey)
     }
     
-    func getServerPublicKeyX() -> Data? {
-        guard let serverPublicKey = getServerPublicKeyAsData() else {
+    func getCounterpartPublicKeyX() -> Data? {
+        guard let publicKey = getCounterpartPublicKeyAsData() else {
             return nil
         }
-        let serverPublicKeyX = serverPublicKey.subdata(in: 0..<serverPublicKey.count/2)
-        return serverPublicKeyX
+        let publicKeyX = publicKey.subdata(in: 0..<publicKey.count/2)
+        return publicKeyX
     }
     
-    func getServerPublicKeyY() -> Data? {
-        guard let serverPublicKey = getServerPublicKeyAsData() else {
+    func getCounterpartPublicKeyY() -> Data? {
+        guard let publicKey = getCounterpartPublicKeyAsData() else {
             return nil
         }
-        let serverPublicKeyY = serverPublicKey.subdata(in: serverPublicKey.count/2..<serverPublicKey.count)
-        return serverPublicKeyY
+        let publicKeyY = publicKey.subdata(in: publicKey.count/2..<publicKey.count)
+        return publicKeyY
     }
 
     //MARK: - ECDH and related confirmation
-    public func calculateClientConfirmationCodeInLittleEndian() -> Data? {
-        let message = clientRandomNumberData
+    public func calculateGeneratedConfirmationCodeInLittleEndian() -> Data? {
+        let message = generatedRandomNumberData
         
         guard var confirmationCode = calculateKeyConfirmationCode(message: message) else {
             return nil
@@ -242,11 +251,40 @@ public class SecurityManager {
         return confirmationCode
     }
     
-    func calculateConfirmationKey() -> Data? {
-        guard let clientPublicKeyX = getClientPublicKeyX(),
-              let clientPublicKeyY = getClientPublicKeyY(),
-              let serverPublicKeyX = getServerPublicKeyX(),
-              let serverPublicKeyY = getServerPublicKeyY(),
+    func calculateConfirmationKeyClient() -> Data? {
+        guard let clientPublicKeyX = getGeneratedPublicKeyX(),
+              let clientPublicKeyY = getGeneratedPublicKeyY(),
+              let serverPublicKeyX = getCounterpartPublicKeyX(),
+              let serverPublicKeyY = getCounterpartPublicKeyY(),
+              let sharedKeyData = delegate?.sharedKeyData else
+        {
+            log.error("not ready to calculate the confirmation key")
+            return nil
+        }
+        
+        let zeroKeyData = Data(Array(repeating: 0x00, count: 16))
+        
+        var message = Data(serverPublicKeyX)
+        message.append(contentsOf: serverPublicKeyY)
+        message.append(contentsOf: clientPublicKeyX)
+        message.append(contentsOf: clientPublicKeyY)
+        
+        var key = SymmetricKey(data: zeroKeyData)
+        let saltKey = Data(CryptoKit.HMAC<SHA256>.authenticationCode(for: message, using: key))
+        
+        message = sharedKeyData
+        message.append(Data(authValue))
+        key = SymmetricKey(data: saltKey)
+        let confirmationKey = Data(CryptoKit.HMAC<SHA256>.authenticationCode(for: message, using: key))
+        
+        return confirmationKey
+    }
+    
+    func calculateConfirmationKeyServer() -> Data? {
+        guard let serverPublicKeyX = getGeneratedPublicKeyX(),
+              let serverPublicKeyY = getGeneratedPublicKeyY(),
+              let clientPublicKeyX = getCounterpartPublicKeyX(),
+              let clientPublicKeyY = getCounterpartPublicKeyY(),
               let sharedKeyData = delegate?.sharedKeyData else
         {
             log.error("not ready to calculate the confirmation key")
@@ -290,18 +328,18 @@ public class SecurityManager {
         return confirmationCode
     }
     
-    func calculateKeyConfirmationServerLittleEndian(serverRandomNumberLittleEndian: Data) -> (calculatedConfirmationCode: Data?, validated: Bool) {
+    func calculateKeyConfirmationReceivedLittleEndian(receivedRandomNumberLittleEndian: Data) -> (calculatedConfirmationCode: Data?, validated: Bool) {
         // the security manager works in big endian
-        let message = Data(serverRandomNumberLittleEndian.reversed())
+        let message = Data(receivedRandomNumberLittleEndian.reversed())
         
-        guard var calculatedKeyConfirmationServer = calculateKeyConfirmationCode(message: message) else {
+        guard var calculatedKeyConfirmationReceived = calculateKeyConfirmationCode(message: message) else {
             return (nil, false)
         }
         // security manager uses big endian. provide little endian
-        calculatedKeyConfirmationServer.reverse()
+        calculatedKeyConfirmationReceived.reverse()
         
-        return (calculatedKeyConfirmationServer, calculatedKeyConfirmationServer == keyConfirmationCodeServerLittleEndian)
-    }    
+        return (calculatedKeyConfirmationReceived, calculatedKeyConfirmationReceived == keyConfirmationCodeReceivedLittleEndian)
+    }
 }
 
 //MARK: - ECDH and related confirmation
@@ -318,7 +356,7 @@ extension SecurityManager {
     
     func nextIV() -> Data {
         configuration.sequenceNumber += 1
-        var iv = configuration.clientIVFixedField ?? configuration.serverIVFixedField // fall back to the server fixed field when the client fixed field is not used
+        var iv = configuration.generatedIVFixedField ?? configuration.receivedIVFixedField // fall back to the received fixed field when the generated fixed field is not used
         iv.appendBigEndian(configuration.sequenceNumber)
         return iv
     }
@@ -385,19 +423,19 @@ extension SecurityManager {
         }
     }
     
-    func decryptSecureResponse(_ secureResponse: Data) -> Result<Data, SecurityManagerError> {
+    func decryptSecurePayload(_ securePayload: Data) -> Result<Data, SecurityManagerError> {
         guard let keyData = keyData else {
             return .failure(.missingKey)
         }
         
-        let securityConfigurationID = secureResponse[secureResponse.startIndex...].to(UInt16.self)
+        let securityConfigurationID = securePayload[securePayload.startIndex...].to(UInt16.self)
         guard securityConfigurationID == configuration.securityConfigurationID else {
             log.error("Unexpected security configuration ID. Expected %d, received %d", configuration.securityConfigurationID, securityConfigurationID)
             return .failure(.incorrectSecurityConfiguration)
         }
         
         var index = 2
-        var nonceData = configuration.serverIVFixedField
+        var nonceData = configuration.receivedIVFixedField
         var mac = Data()
         var ciphertext = Data()
         
@@ -406,15 +444,15 @@ extension SecurityManager {
             case .nonce:
                 // only the sequence number is transmitted
                 // BT use little endian byte order
-                nonceData.append(contentsOf: secureResponse.subdata(in: index..<index+configuration.nonceSizeOctetsVariable).reversed())
+                nonceData.append(contentsOf: securePayload.subdata(in: index..<index+configuration.nonceSizeOctetsVariable).reversed())
                 index += configuration.nonceSizeOctetsVariable
             case .mac:
                 // BT use little endian byte order
-                mac = Data(secureResponse.subdata(in: index..<index+configuration.macSize).reversed())
+                mac = Data(securePayload.subdata(in: index..<index+configuration.macSize).reversed())
                 index += configuration.macSize
             case .authenticatedEncryptedATTPacketWithAssociatedData, .authenticatedEncryptedATTPacket:
                 // BT use little endian byte order
-                ciphertext = Data(secureResponse.subdata(in: index..<index+(secureResponse.count - (2+configuration.macSize+configuration.nonceSizeOctetsVariable))).reversed())
+                ciphertext = Data(securePayload.subdata(in: index..<index+(securePayload.count - (2+configuration.macSize+configuration.nonceSizeOctetsVariable))).reversed())
                 index += ciphertext.count
             default:
                 log.error("Security control is not supported %{public}@", String(describing: control))
@@ -458,7 +496,7 @@ extension SecurityManager {
         
         private enum SecurityManagerConfigurationKey: String {
             case algorithmKeyID
-            case clientIVFixedField
+            case generatedIVFixedField
             case certificateDeviceIdentifier
             case ecdhKeyID
             case ellipticCurve
@@ -471,15 +509,15 @@ extension SecurityManager {
             case securityConfigurationID
             case securityControls
             case sequenceNumber
-            case serverIVFixedField
+            case receivedIVFixedField
             case version
         }
         
         public var oobRandomNumber: Data = Data()
         
-        var ecdhKeyID: KeyID = 1
+        public var ecdhKeyID: KeyID = 1
         
-        var algorithmKeyID: KeyID = 10
+        public var algorithmKeyID: KeyID = 2
         
         var ellipticCurve: EllipticCurve = .p256
         
@@ -493,9 +531,9 @@ extension SecurityManager {
         
         public var nonceSizeOctetsVariable = 8
         
-        var serverIVFixedField: Data = Data(UInt32(0xcafeaffe))
+        var receivedIVFixedField: Data = Data(UInt32(0xcafeaffe))
         
-        var clientIVFixedField: Data?
+        var generatedIVFixedField: Data?
         
         var sequenceNumber: UInt64 = 0
         
@@ -511,12 +549,12 @@ extension SecurityManager {
             !oobRandomNumber.isEmpty
         }
         
-        mutating func generateNewClientNonceFixed() -> Data {
-            // the client and server fixed parts are the same size
-            let size = serverIVFixedField.count
-            let clientIVFixedField = Data((1...size).map { _ in UInt8.random(in: 0...UInt8.max) })
-            self.clientIVFixedField = clientIVFixedField
-            return clientIVFixedField
+        mutating func generateNewNonceFixed() -> Data {
+            // the generated and counterpart fixed parts are the same size
+            let size = receivedIVFixedField.count
+            let generatedIVFixedField = Data((1...size).map { _ in UInt8.random(in: 0...UInt8.max) })
+            self.generatedIVFixedField = generatedIVFixedField
+            return generatedIVFixedField
         }
         
         struct KeyDerivationFunctionConfiguration: Codable, Equatable {
@@ -561,8 +599,8 @@ extension SecurityManager {
             self.sequenceNumber = sequenceNumber
             self.securityConfigurationID = securityConfigurationID
             
-            self.serverIVFixedField = rawValue[SecurityManagerConfigurationKey.serverIVFixedField.rawValue] as? Data ?? Data(UInt32(0xcafeaffe))
-            self.clientIVFixedField = rawValue[SecurityManagerConfigurationKey.clientIVFixedField.rawValue] as? Data
+            self.receivedIVFixedField = rawValue[SecurityManagerConfigurationKey.receivedIVFixedField.rawValue] as? Data ?? Data(UInt32(0xcafeaffe))
+            self.generatedIVFixedField = rawValue[SecurityManagerConfigurationKey.generatedIVFixedField.rawValue] as? Data
             
             self.ellipticCurve = .p256
             if let rawEllipticCurve = rawValue[SecurityManagerConfigurationKey.ellipticCurve.rawValue] as? EllipticCurve.RawValue,
@@ -604,8 +642,8 @@ extension SecurityManager {
             raw[SecurityManagerConfigurationKey.macSize.rawValue] = macSize
             raw[SecurityManagerConfigurationKey.nonceType.rawValue] = nonceType.rawValue
             raw[SecurityManagerConfigurationKey.nonceSizeOctetsVariable.rawValue] = nonceSizeOctetsVariable
-            raw[SecurityManagerConfigurationKey.serverIVFixedField.rawValue] = serverIVFixedField
-            raw[SecurityManagerConfigurationKey.clientIVFixedField.rawValue] = clientIVFixedField
+            raw[SecurityManagerConfigurationKey.receivedIVFixedField.rawValue] = receivedIVFixedField
+            raw[SecurityManagerConfigurationKey.generatedIVFixedField.rawValue] = generatedIVFixedField
             raw[SecurityManagerConfigurationKey.sequenceNumber.rawValue] = sequenceNumber
             raw[SecurityManagerConfigurationKey.securityConfigurationID.rawValue] = securityConfigurationID
             

@@ -8,6 +8,8 @@
 
 import Foundation
 
+// TODO need to rework this
+
 struct RestrictionMapIDList: RequestHandler {
 
     static let mappingHeaderSize = 4
@@ -16,9 +18,9 @@ struct RestrictionMapIDList: RequestHandler {
         return RestrictionMapIDList.buildControlPointRequest(opcode: ACControlPointOpcode.getRestrictionMapIDList)
     }
     
-    static func handleResponse(_ response: Data) -> DeviceCommResult<Void> {
-        var restrictionMapIDs = Array<UInt16>()
-        var securityIDs = Array<UInt16>()
+    static func handleResponse(_ response: Data) -> DeviceCommResult<Any?> {
+        var restrictionMapIDs: [UInt16] = []
+        var securityIDs: [UInt16] = []
         var index = 1 // skip opcode
         
         while (index < response.count) {
@@ -29,7 +31,7 @@ struct RestrictionMapIDList: RequestHandler {
             index += 2
         }
         
-        return .success
+        return .success((restrictionMapIDs: restrictionMapIDs, securityIDs: securityIDs))
     }
     
 }

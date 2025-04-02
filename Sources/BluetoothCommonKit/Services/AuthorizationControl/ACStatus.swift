@@ -7,9 +7,57 @@
 //
 
 import Foundation
+import CoreBluetooth
 import os.log
 
-public struct ACStatus {
+public typealias RestrictionMapID = UInt16
+
+// MARK: - Support Server Implementation
+public class ACStatusCharacteristic {
+    private let log = OSLog(category: "ACStatusCharacteristic")
+    var messageQueue: MessagingQueue
+    public var isSecurityEstablished = false
+    public var currentRestrictionMapID: RestrictionMapID = 1
+
+    public init(messageQueue: MessagingQueue) {
+        self.messageQueue = messageQueue
+    }
+    
+    public func createData() -> Data {
+        var flags: StatusFlag = [.securityControlsEnabled]
+        if isSecurityEstablished {
+            flags.insert(.securityEstablished)
+        }
+        
+        var characteristicValue = Data(flags.rawValue)
+        characteristicValue.append(currentRestrictionMapID)
+        
+        log.debug("Authorization Control Status characteristic value: %{public}@", characteristicValue.hexadecimalString)
+        
+        return characteristicValue
+    }
+
+    public func onRead() -> (CBATTError.Code, Data) {
+        log.debug("reading Authorization Control Status characteristic")
+        return (CBATTError.Code.success, self.createData())
+    }
+    
+    public func triggerIndication() {
+        if messageQueue.gattServer.isCharacteristicSubscribed(ACCharacteristicUUID.status.cbUUID) ?? false {
+            let valuepair = UUIDValuePair(
+                uuid: ACCharacteristicUUID.status.cbUUID,
+                value: createData()
+            )
+            log.debug("%{public}@", valuepair.description)
+            messageQueue.addQueueItem(valuepair)
+        } else {
+            log.debug("AC status changed characteristic is not configured for indications")
+        }
+    }
+}
+
+// MARK: - Support Client Implementation
+public struct ACStatusDataHandler {
     static private let log = OSLog(category: "AuthorizationControlStatus")
     
     static public func handleData(_ data: Data) -> (currentRestrictionMapID: Int, status: StatusFlag)? {
@@ -35,7 +83,7 @@ public extension PeripheralManager {
                 throw PeripheralManagerError.timeout
             }
             
-            guard let status = ACStatus.handleData(characteristicData) else {
+            guard let status = ACStatusDataHandler.handleData(characteristicData) else {
                 throw PeripheralManagerError.invalidResponse(characteristicData)
             }
             

@@ -9,7 +9,73 @@
 import CoreBluetooth
 import os.log
 
-public class DTControlPoint: ControlPoint {
+// MARK: - Support Server implementation
+public class DTControlPointCharacteristic: E2EProtection {
+    public var e2eCounter: UInt8 = 0
+
+    public weak var e2eDelegate: E2EProtectionDelegate?
+    
+    var messageQueue: MessagingQueue
+    
+    public init(messageQueue: MessagingQueue) {
+        self.messageQueue = messageQueue
+    }
+
+    public func onWrite(_ request: Data?) -> CBATTError.Code {
+        ConsoleOut.shared.logMessage(message: "\(#function) Device Time Control Point request \(String(describing: request?.hexadecimalString))")
+        guard let request = request else {
+            return CBATTError.Code.invalidPdu
+        }
+
+        var index = (e2eDelegate?.isE2EProtectionSupported ?? false) ? 2 : 0 // skip CRC
+        let requestOpcode = DTControlPointOpcode(rawValue: request[request.startIndex.advanced(by: index)...].to(DTControlPointOpcode.RawValue.self))
+        index += 2
+        
+        switch requestOpcode {
+        case .proposeTimeUpdate:
+            ConsoleOut.shared.logMessage(message: "Opcode proposeTimeUpdate (opcode: \(String(describing: requestOpcode)))")
+            // all proposed time updates to set time are accepted even though time is not set
+            respondWithSuccess(to: .proposeTimeUpdate)
+        case .forceTimeUpdate, .proposeNonLoggedTimeAdjustmentLimit, .reportActiveTimeAdjustments, .retrieveActiveTimeAdjustments:
+            responseWithResponseCode(.opcodeNotSupported, to: requestOpcode!)
+        default:
+            ConsoleOut.shared.logMessage(message: "Command not supported")
+            return CBATTError.Code.commandNotSupported
+        }
+        return CBATTError.Code.success
+    }
+    
+    public func respondWithSuccess(to requestOpcode: DTControlPointOpcode) {
+        responseWithResponseCode(.success, to: requestOpcode)
+    }
+    
+    public func responseWithResponseCode(_ responseCode: DTControlPointResponseCode, to requestOpcode: DTControlPointOpcode) {
+        ConsoleOut.shared.logMessage(message: "\(#function) requestOpcode: \(requestOpcode) responseCode: \(responseCode)")
+        var response = Data(DTControlPointOpcode.responseCode.rawValue)
+        response.append(requestOpcode.rawValue)
+        response.append(responseCode.rawValue)
+        sendResponse(response)
+    }
+    
+    public func sendResponse(_ response: Data) {
+        var response = response
+        if e2eDelegate?.isE2EProtectionSupported ?? false {
+            response = response.appendingCRCPrefix()
+        }
+        messageQueue.addQueueItem(
+            UUIDValuePair(
+                uuid: DeviceTimeCharacteristicUUID.controlPoint.cbUUID,
+                value: response
+            )
+        )
+    }
+}
+
+// MARK: - Support Client implementation
+public class DTControlPointDataHandler: ControlPoint, E2EProtection {
+    public var e2eCounter: UInt8 = 0
+    
+    public var e2eDelegate: (any E2EProtectionDelegate)?
 
     private let log = OSLog(category: "DTControlPoint")
 
@@ -21,24 +87,25 @@ public class DTControlPoint: ControlPoint {
 
     //MARK: - Response Handling
     public func handleResponse(_ response: Data) -> (result: DeviceCommResult<Void>, completion: Any?) {
-        guard response.isCRCPrefixValid else {
+        guard e2eDelegate?.isE2EProtectionSupported == false || (e2eDelegate?.isE2EProtectionSupported == true && response.isCRCPrefixValid) else {
             return (.failure(.invalidCRC), nil)
         }
 
-        let responseWithoutCRC = response.dropFirst(2)
+        var index = e2eDelegate?.isE2EProtectionSupported ?? false ? 2 : 0
 
-        guard let opcode: DTControlPointOpcode = responseOpcode(responseWithoutCRC) else {
+        guard let opcode = DTControlPointOpcode(rawValue: response[response.startIndex.advanced(by: index)...].to(DTControlPointOpcode.RawValue.self)) else {
             log.error("Response opcode not known. Complete response: %{public}@", response.hexadecimalString)
             return (.failure(.opcodeUnknown(response.hexadecimalString)), nil)
         }
+        index += 1
 
         log.debug("device time control point response opcode: %{public}@", opcode.procedureID)
         switch opcode {
         case .responseCode:
-            guard responseWithoutCRC.count >= 2 else { return (.failure(.invalidFormat), nil) }
+            guard response.count >= 2 else { return (.failure(.invalidFormat), nil) }
 
-            guard let requestOpcode = DTControlPointOpcode(rawValue: responseWithoutCRC[responseWithoutCRC.startIndex.advanced(by: 1)...].to(DTControlPointOpcode.RawValue.self)),
-                  let responseCode = DTControlPointResponseCode(rawValue: responseWithoutCRC[responseWithoutCRC.startIndex.advanced(by: 2)...].to(DTControlPointResponseCode.RawValue.self)) else
+            guard let requestOpcode = DTControlPointOpcode(rawValue: response[response.startIndex.advanced(by: index)...].to(DTControlPointOpcode.RawValue.self)),
+                  let responseCode = DTControlPointResponseCode(rawValue: response[response.startIndex.advanced(by: index+1)...].to(DTControlPointResponseCode.RawValue.self)) else
             {
                 return (.failure(.parameterOutOfRange), nil)
             }
@@ -120,13 +187,14 @@ public class DTControlPoint: ControlPoint {
 
     //MARK: - Create Requests
     func buildRequest(_ opcode: DTControlPointOpcode, operand: Data? = nil) -> Data {
-        var request = DTControlPoint.buildControlPointRequest(opcode: opcode, operand: operand)
-        // add E2E-CRC
-        request = request.appendingCRCPrefix()
+        var request = DTControlPointDataHandler.buildControlPointRequest(opcode: opcode, operand: operand)
+        if e2eDelegate?.isE2EProtectionSupported ?? false {
+            request = request.appendingCRCPrefix()
+        }
         return request
     }
 
-    public func createProposeTimeUpdateRequest(_ date: Date = Date(), using timeZone: TimeZone) -> Data? {
+    public func createProposeTimeUpdateRequest(_ date: Date = Date(), using timeZone: TimeZone) -> Data {
         let timeUpdateFlags = TimeUpdateFlags([.epochYear2000, .utcAligned, .secondFractionsNotValid])
 
         // base time is the number of seconds from January 1, 2000 (Epoch 2000)
@@ -150,8 +218,7 @@ public class DTControlPoint: ControlPoint {
 
     //MARK: - Queue Requests
     public func queueProposeTimeUpdateRequest(_ date: Date = Date(), using timeZone: TimeZone, completion: ProcedureResultCompletion? = nil) {
-        guard let request = createProposeTimeUpdateRequest(date, using: timeZone) else { return }
-        appendToRequestQueue(request, completion: completion)
+        appendToRequestQueue(createProposeTimeUpdateRequest(date, using: timeZone), completion: completion)
     }
 }
 

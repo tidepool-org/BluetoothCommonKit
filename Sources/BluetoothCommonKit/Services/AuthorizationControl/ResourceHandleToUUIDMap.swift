@@ -9,9 +9,9 @@
 import CoreBluetooth
 import os.log
 
-private let log = OSLog(category: "ResourceHandleToUUIDMap")
-
 struct ResourceHandleToUUIDMap: RequestHandler {
+    private static let log = OSLog(category: "ResourceHandleToUUIDMap")
+
     static let recordHeaderSize = 4
     static let subattributesHeaderSize = 1
     static let attributesHeaderSize = 1

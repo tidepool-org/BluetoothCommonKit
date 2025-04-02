@@ -16,9 +16,10 @@ struct InformationSecurityConfigurationDescriptor: RequestHandler {
         return InformationSecurityConfigurationDescriptor.buildControlPointRequest(opcode: ACControlPointOpcode.getInformationSecurityConfigurationDescriptor)
     }
     
-    static func handleResponse(_ response: Data, securityManager: SecurityManager) -> DeviceCommResult<Void> {
+    static func handleResponse(_ response: Data, securityManager: SecurityManager) -> DeviceCommResult<Any?> {
         var index = 1 // skip opcode
         
+        var allSecurityControls: [[SecurityControlType]] = []
         while index < response.count {
             guard index + recordHeaderSize <= response.count else { return .failure(.invalidFormat) }
             let recordType = RecordTypeSecurityConfiguration(rawValue: response[response.startIndex.advanced(by: index)...].to(UInt8.self))
@@ -62,20 +63,21 @@ struct InformationSecurityConfigurationDescriptor: RequestHandler {
                     }
                     securityManager.configuration.securityConfigurationID = recordValue
                     securityManager.configuration.securityControls = securityControls
+                    allSecurityControls.append(securityControls)
                 }
             }
         }
         
-        return .success
+        return .success(allSecurityControls)
     }
     
 }
 
-enum RecordTypeSecurityConfiguration: UInt8 {
+public enum RecordTypeSecurityConfiguration: UInt8 {
     case informationSecurityConfigurationID
 }
 
-enum SecurityControlType: UInt8, Codable {
+public enum SecurityControlType: UInt8, Codable {
     case nonce
     case authenticatedATTPacket
     case encryptedATTPacket

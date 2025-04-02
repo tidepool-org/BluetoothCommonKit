@@ -81,7 +81,7 @@ class ACFeatureTests: XCTestCase {
     }
     
     func testGetACSFeatureRequest() {
-        let request = ACFeature.request
+        let request = ACFeatureDataHandler.request
         XCTAssertEqual(request, Data([ACControlPointOpcode.getACSFeature.rawValue]))
     }
     
@@ -105,7 +105,7 @@ class ACFeatureTests: XCTestCase {
         expectedFeatureResponse.append(expectedConfirmationOutputSize)
         expectedFeatureResponse.append(expectedConfirmationOutputCapability.rawValue)
         
-        let result = ACFeature.handleResponse(expectedFeatureResponse)
+        let result = ACFeatureDataHandler.handleResponse(expectedFeatureResponse)
         switch result {
         case .success(let features):
             XCTAssertEqual(expectedFeatureFlags, features)
@@ -116,7 +116,7 @@ class ACFeatureTests: XCTestCase {
     
     func testFeatureResponseInvalidFormat() {
         let notEnoughData = Data([0xFF, 0xEF, 0x45])
-        let result = ACFeature.handleResponse(notEnoughData)
+        let result = ACFeatureDataHandler.handleResponse(notEnoughData)
         switch result {
         case .success(_):
             XCTAssert(false)

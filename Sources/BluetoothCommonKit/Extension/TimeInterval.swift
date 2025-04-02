@@ -58,6 +58,14 @@ public extension TimeInterval {
         return self.init(hundredthsOfMilliseconds: hundredthsOfMilliseconds)
     }
     
+    static func hundredthsOfMicroseconds(_ hundredthsOfMicroseconds: Int) -> TimeInterval {
+        return self.init(hundredthsOfMicroseconds: hundredthsOfMicroseconds)
+    }
+    
+    static func hundredthsOfMicroseconds(_ hundredthsOfMicroseconds: Double) -> TimeInterval {
+        return self.init(hundredthsOfMicroseconds: hundredthsOfMicroseconds)
+    }
+    
     init(days: Int) {
         self.init(days: Double(days))
     }
@@ -106,6 +114,14 @@ public extension TimeInterval {
         self.init(hundredthsOfMilliseconds / 100000)
     }
     
+    init(hundredthsOfMicroseconds: Int) {
+        self.init(hundredthsOfMicroseconds: Double(hundredthsOfMicroseconds))
+    }
+    
+    init(hundredthsOfMicroseconds: Double) {
+        self.init(hundredthsOfMicroseconds / 100000000)
+    }
+    
     var days: Double {
         return hours / 24.0
     }
@@ -130,4 +146,7 @@ public extension TimeInterval {
         return self * 100000
     }
     
+    var hundredthsOfMicroseconds: Double {
+        return self * 100000000
+    }
 }

@@ -8,13 +8,13 @@
 
 import Foundation
 
-typealias KeyID = UInt16
+public typealias KeyID = UInt16
 
 struct KeyExchangeECDH: RequestHandler {
 
     static func setClientFixedNonce(securityManager: SecurityManager) -> Data {
         let keyID: KeyID = securityManager.configuration.algorithmKeyID
-        let clientIVFixedField = securityManager.generateNewClientNonceFixed()
+        let clientIVFixedField = securityManager.generateNewNonceFixed()
 
         var operand = Data(keyID)
         // security manager stores client fixed nonce in big endianness, but transmission expects little endianness
@@ -31,6 +31,30 @@ struct KeyExchangeECDH: RequestHandler {
         return KeyExchangeECDH.buildControlPointRequest(opcode: ACControlPointOpcode.startKeyExchange, operand: operand)
     }
 
+    static func ecdhRequestUncompressedPlain(securityManager: SecurityManager) -> Data? {
+        let keyID: KeyID = securityManager.configuration.ecdhKeyID
+        guard var publicKeyX = securityManager.getGeneratedPublicKeyX(),
+              var publicKeyY = securityManager.getGeneratedPublicKeyY()
+        else {
+            return nil
+        }
+        
+        // send in little endian
+        publicKeyX.reverse()
+        publicKeyY.reverse()
+        
+        let publicKeyXSize = UInt8(publicKeyX.count)
+        let publicKeyYSize = UInt8(publicKeyY.count)
+
+        var operand = Data(keyID)
+        operand.append(publicKeyXSize)
+        operand.append(publicKeyX)
+        operand.append(publicKeyYSize)
+        operand.append(publicKeyY)
+
+        return KeyExchangeECDH.buildControlPointRequest(opcode: ACControlPointOpcode.keyExchangeECDH, operand: operand)
+    }
+    
     static func ecdhRequestCertificate(securityManager: SecurityManager, certificateData: Data) -> Data {
         let keyID: KeyID = securityManager.configuration.ecdhKeyID
         let certificateSize = UInt16(certificateData.count)
@@ -44,7 +68,7 @@ struct KeyExchangeECDH: RequestHandler {
     
     static func ecdhConfirmationCodeRequest(securityManager: SecurityManager) -> Data? {
         let keyID: KeyID = securityManager.configuration.ecdhKeyID
-        guard let confirmationCode = securityManager.calculateClientConfirmationCodeInLittleEndian() else {
+        guard let confirmationCode = securityManager.calculateGeneratedConfirmationCodeInLittleEndian() else {
             return nil
         }
         
@@ -57,16 +81,16 @@ struct KeyExchangeECDH: RequestHandler {
     
     static func ecdhConfirmationRandomNumberRequest(securityManager: SecurityManager) -> Data {
         let keyID: KeyID = securityManager.configuration.ecdhKeyID
-        let clientRandomNumberData = securityManager.clientRandomNumberData
+        let generatedRandomNumberData = securityManager.generatedRandomNumberData
         
         var operand = Data()
         operand.append(keyID)
-        operand.append(clientRandomNumberData)
+        operand.append(generatedRandomNumberData)
         
         return KeyExchangeECDH.buildControlPointRequest(opcode: ACControlPointOpcode.keyExchangeECDHConfirmationRandomNumber, operand: operand)
     }
     
-    static func handleResponse(_ response: Data, opcode: ACControlPointOpcode, securityManager: SecurityManager) -> DeviceCommResult<Void> {
+    static func handleResponse(_ response: Data, opcode: ACControlPointOpcode, securityManager: SecurityManager) -> DeviceCommResult<Any?> {
         switch opcode {
         case .keyExchangeECDHResponse:
             return handleECDHResponse(response, securityManager: securityManager)
@@ -83,7 +107,7 @@ struct KeyExchangeECDH: RequestHandler {
         }
     }
     
-    static func handleECDHResponse(_ response: Data, securityManager: SecurityManager) -> DeviceCommResult<Void> {
+    static func handleECDHResponse(_ response: Data, securityManager: SecurityManager) -> DeviceCommResult<Any?> {
         let expectedResponseLength = securityManager.configuration.ellipticCurve.ecdhResponseLength
         guard response.count == expectedResponseLength else {
             return .failure(.invalidFormat)
@@ -97,32 +121,32 @@ struct KeyExchangeECDH: RequestHandler {
             return .failure(.invalidOperand)
         }
         
-        // parse X and Y of server public key
+        // parse X and Y of received public key
         let coordinateXSize = Int(response[response.startIndex.advanced(by: index)...].to(UInt8.self))
         index += 1
-        var serverPublicKeyX = response.subdata(in: index..<index+coordinateXSize)
+        var receivedPublicKeyX = response.subdata(in: index..<index+coordinateXSize)
         index += coordinateXSize
         
         // change to big endian
-        serverPublicKeyX.reverse()
+        receivedPublicKeyX.reverse()
         
         let coordinateYSize = Int(response[response.startIndex.advanced(by: index)...].to(UInt8.self))
         index += 1
-        var serverPublicKeyY = response.subdata(in: index..<index+coordinateYSize)
+        var receivedPublicKeyY = response.subdata(in: index..<index+coordinateYSize)
         index += coordinateYSize
         
         // change to big endian
-        serverPublicKeyY.reverse()
+        receivedPublicKeyY.reverse()
         
         // put the coordinates together
-        var serverPublicKeyData: Data = serverPublicKeyX
-        serverPublicKeyData.append(serverPublicKeyY)
+        var receivedPublicKeyData: Data = receivedPublicKeyX
+        receivedPublicKeyData.append(receivedPublicKeyY)
         
-        securityManager.generateSharedSecret(serverPublicKeyData: serverPublicKeyData)
-        return .success
+        securityManager.generateSharedSecret(receivedPublicKeyData: receivedPublicKeyData)
+        return .success(nil)
     }
     
-    static func handleECDHConfirmationCodeResponse(_ response: Data, securityManager: SecurityManager) -> DeviceCommResult<Void> {
+    static func handleECDHConfirmationCodeResponse(_ response: Data, securityManager: SecurityManager) -> DeviceCommResult<Any?> {
         let expectedResponseLength = 3
         guard response.count >= expectedResponseLength else {
             return .failure(.invalidFormat)
@@ -136,13 +160,13 @@ struct KeyExchangeECDH: RequestHandler {
             return .failure(.invalidOperand)
         }
         
-        let serverConfirmationCode = response.subdata(in: index..<response.count)
-        securityManager.keyConfirmationCodeServerLittleEndian = serverConfirmationCode
+        let confirmationCode = response.subdata(in: index..<response.count)
+        securityManager.keyConfirmationCodeReceivedLittleEndian = confirmationCode
         
-        return .success
+        return .success(nil)
     }
     
-    static func handleECDHConfirmationRandomNumberResponse(_ response: Data, securityManager : SecurityManager) -> DeviceCommResult<Void> {
+    static func handleECDHConfirmationRandomNumberResponse(_ response: Data, securityManager: SecurityManager) -> DeviceCommResult<Any?> {
         let expectedResponseLength = 3
         guard response.count >= expectedResponseLength else {
             return .failure(.invalidFormat)
@@ -156,13 +180,13 @@ struct KeyExchangeECDH: RequestHandler {
             return .failure(.invalidOperand)
         }
 
-        let serverRandomNumber = response.subdata(in: index..<response.count)
-        let (_, validated) = securityManager.calculateKeyConfirmationServerLittleEndian(serverRandomNumberLittleEndian: serverRandomNumber)
+        let randomNumber = response.subdata(in: index..<response.count)
+        let (_, validated) = securityManager.calculateKeyConfirmationReceivedLittleEndian(receivedRandomNumberLittleEndian: randomNumber)
 
-        return validated ? .success : .failure(.authenticationFailed)
+        return validated ? .success(nil) : .failure(.authenticationFailed)
     }
     
-    static func handleResponse(_ response: Data, securityManager: SecurityManager) -> DeviceCommResult<Void> {
+    static func handleResponse(_ response: Data, securityManager: SecurityManager) -> DeviceCommResult<Any?> {
         let expectedResponseLength = 4
         guard response.count == expectedResponseLength else {
             return .failure(.invalidFormat)
@@ -178,10 +202,10 @@ struct KeyExchangeECDH: RequestHandler {
         
         let responseCode = KeyExchangeResponseCode(rawValue: response[response.startIndex.advanced(by: index)...].to(UInt8.self))
         securityManager.keyExchangeResults(responseCode == KeyExchangeResponseCode.successful)
-        return responseCode == KeyExchangeResponseCode.successful ? .success : .failure(.authenticationFailed)
+        return responseCode == KeyExchangeResponseCode.successful ? .success(nil) : .failure(.authenticationFailed)
     }
 
-    static func handleKDFResponse(_ response: Data, securityManager: SecurityManager) -> DeviceCommResult<Void> {
+    static func handleKDFResponse(_ response: Data, securityManager: SecurityManager) -> DeviceCommResult<Any?> {
         let expectedResponseLengthMin = 4
         guard response.count >= expectedResponseLengthMin else {
             return .failure(.invalidFormat)
@@ -218,21 +242,21 @@ struct KeyExchangeECDH: RequestHandler {
 
         let success = securityManager.derivateSharedKey()
         if success {
-            return .success
+            return .success(nil)
         } else {
             return .failure(.securityManagerError(.keyDerivationFailed))
         }
     }
 }
 
-enum StartKeyExchangeConfirmationMethod: UInt8 {
+public enum StartKeyExchangeConfirmationMethod: UInt8 {
     case noMethod
     case oobNumberOutput
     case oobNumberInput
     case oobNumberStatic
 }
 
-enum StartKeyExchangeConfirmationAction: UInt8 {
+public enum StartKeyExchangeConfirmationAction: UInt8 {
     case push
     case beep
     case inputNumeric
@@ -240,12 +264,12 @@ enum StartKeyExchangeConfirmationAction: UInt8 {
     case staticAction = 0xff
 }
 
-enum KeyExchangeResponseCode: UInt8 {
+public enum KeyExchangeResponseCode: UInt8 {
     case successful
     case failed
 }
 
-enum KeyDerivationFunction: UInt8, Codable {
+public enum KeyDerivationFunction: UInt8, Codable {
     case hkdfSHA256
     case hkdfSHA384
     case hkdfSHA512
@@ -266,7 +290,7 @@ enum KeyDerivationFunction: UInt8, Codable {
     }
  }
 
-enum KeyFormat: UInt8, Codable {
+public enum KeyFormat: UInt8, Codable {
     case plain
     case x509Encoded
 }

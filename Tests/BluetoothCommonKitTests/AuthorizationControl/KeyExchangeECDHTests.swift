@@ -174,7 +174,7 @@ class KeyExchangeECDHTests: XCTestCase {
         securityManager.delegate = securityManagerTestingDelegate
         securityManager.configuration.ellipticCurve = .p256
         securityManager.generateKeyPair()
-        guard let clientPubicKey = securityManager.getClientPublicKey() else {
+        guard let clientPubicKey = securityManager.getGeneratedPublicKey() else {
             XCTAssert(false, "error generating the client public key")
             return
         }
@@ -202,7 +202,7 @@ class KeyExchangeECDHTests: XCTestCase {
         let result = KeyExchangeECDH.handleResponse(response, opcode: opcode, securityManager: securityManager)
         switch result {
         case .success:
-            XCTAssertEqual(securityManager.getServerPublicKeyAsData(), expectedServerPublicKey)
+            XCTAssertEqual(securityManager.getCounterpartPublicKeyAsData(), expectedServerPublicKey)
             XCTAssertEqual(securityManagerTestingDelegate.sharedKeyData, expectedSharedKeyData)
         case .failure(_):
             XCTAssert(false)
@@ -225,7 +225,7 @@ class KeyExchangeECDHTests: XCTestCase {
         let parsedResponse = KeyExchangeECDH.handleResponse(keyExchangeECDHResponse, opcode: opcode, securityManager: securityManager)
         XCTAssertNotNil(parsedResponse)
 
-        let expectedClientConfirmationCode = securityManager.calculateClientConfirmationCodeInLittleEndian()
+        let expectedClientConfirmationCode = securityManager.calculateGeneratedConfirmationCodeInLittleEndian()
 
         let request = KeyExchangeECDH.ecdhConfirmationCodeRequest(securityManager: securityManager)
         XCTAssertNotNil(request)
@@ -288,7 +288,7 @@ class KeyExchangeECDHTests: XCTestCase {
         result = KeyExchangeECDH.handleResponse(response, opcode: opcode, securityManager: securityManager)
         switch result {
         case .success:
-            XCTAssertEqual(securityManager.keyConfirmationCodeServerLittleEndian, expectedServerKeyConfirmationCodeLittleEndian)
+            XCTAssertEqual(securityManager.keyConfirmationCodeReceivedLittleEndian, expectedServerKeyConfirmationCodeLittleEndian)
         case .failure(_):
             XCTAssert(false)
         }
@@ -299,7 +299,7 @@ class KeyExchangeECDHTests: XCTestCase {
         let keyID: KeyID = 1
         securityManager.configuration.ecdhKeyID = keyID
         
-        let expectedClientRandomNumber = securityManager.clientRandomNumberData
+        let expectedClientRandomNumber = securityManager.generatedRandomNumberData
         
         let request = KeyExchangeECDH.ecdhConfirmationRandomNumberRequest(securityManager: securityManager)
         XCTAssertNotNil(request)
@@ -482,7 +482,7 @@ extension KeyExchangeECDHTests {
         securityManager.configuration.algorithmKeyID = keyID
         let request = KeyExchangeECDH.setClientFixedNonce(securityManager: securityManager)
 
-        guard let clientIVFixedField = securityManager.configuration.clientIVFixedField else {
+        guard let clientIVFixedField = securityManager.configuration.generatedIVFixedField else {
             XCTAssert(false)
             return
         }

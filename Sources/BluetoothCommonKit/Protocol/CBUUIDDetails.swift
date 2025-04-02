@@ -8,7 +8,7 @@
 
 import Foundation
 
-public protocol CBUUIDDetails: CBUUIDRawValue {
+public protocol CBUUIDDetails: CBUUIDRawValue where RawValue == String {
     var name: String { get }
     var properties: [CBUUIDProperties] { get }
     var procedureID: ProcedureID { get }

@@ -7,9 +7,62 @@
 //
 
 import Foundation
+import CoreBluetooth
 import os.log
 
-public class DeviceTime {
+// MARK: - Support Server implementation
+public class DeviceTimeCharacteristic: E2EProtection {
+    public var e2eCounter: UInt8 = 0
+    public weak var e2eDelegate: E2EProtectionDelegate?
+    var messageQueue: MessagingQueue
+    
+    public init(messageQueue: MessagingQueue) {
+        self.messageQueue = messageQueue
+    }
+    
+    public func createData() -> Data {
+        let secondsSinceEpoch2000 = Date().baseTimeInSecondsFromEpoch2000
+        let timeZoneOffset = TimeZone.current.gattTimeZoneOffset
+        let dstOffset = TimeZone.current.dstOffset
+        let status: DTStatusFlag = [.utcAligned, .qualifiedLocalTimeSynchronized, .epochYear2000]
+        var characteristicValue = Data(secondsSinceEpoch2000)
+        characteristicValue.append(timeZoneOffset)
+        characteristicValue.append(dstOffset.rawValue)
+        characteristicValue.append(status.rawValue)
+        
+        if e2eDelegate?.isE2EProtectionSupported ?? false {
+            characteristicValue = characteristicValue.appendingCRCPrefix()
+        }
+        
+        ConsoleOut.shared.logMessage(message: "\(#function) Device Time characteristic value: \(characteristicValue.hexadecimalString)")
+        
+        return characteristicValue
+    }
+    
+    public func onRead() -> (CBATTError.Code, Data) {
+        ConsoleOut.shared.logMessage(message: "\(#function): reading Device Time characteristic")
+        return (CBATTError.Code.success, self.createData())
+    }
+    
+    public func triggerIndication() {
+        if messageQueue.gattServer.isCharacteristicSubscribed(DeviceTimeCharacteristicUUID.deviceTime.cbUUID) == true {
+            let valuepair = UUIDValuePair(
+                uuid: DeviceTimeCharacteristicUUID.deviceTime.cbUUID,
+                value: createData()
+            )
+            ConsoleOut.shared.logMessage(message: "\(#function): \(valuepair.description)")
+            messageQueue.addQueueItem(valuepair)
+        } else {
+            ConsoleOut.shared.logMessage(message: "\(#function): Device Time characteristic is not configured for indications")
+        }
+    }
+}
+
+// MARK: - Support Client implementation
+public class DeviceTimeDataHandler: E2EProtection {
+    public var e2eCounter: UInt8 = 0
+
+    public weak var e2eDelegate: (any E2EProtectionDelegate)?
     
     private let log = OSLog(category: "DeviceTime")
     
@@ -32,17 +85,17 @@ public class DeviceTime {
     }
     
     public func handleData(_ data: Data) -> (result: DeviceCommResult<Date?>, completion: Any?) {
-        guard data.count == 10 else {
+        guard data.count >= 8 else {
             log.error("device time characteristic incorrect format.")
             return (.failure(.invalidFormat), nil)
         }
 
-        guard data.isCRCPrefixValid else {
+        guard e2eDelegate?.isE2EProtectionSupported == false || (e2eDelegate?.isE2EProtectionSupported == true && data.isCRCPrefixValid) else {
             log.error("device time CRC is invalid.")
             return (.failure(.invalidCRC), nil)
         }
 
-        var index = 2 // skip CRC
+        var index = e2eDelegate?.isE2EProtectionSupported == true ? 2 : 0 // skip CRC
         
         var completion: Any? = nil
         lockedRequestQueue.mutate { requestQueue in

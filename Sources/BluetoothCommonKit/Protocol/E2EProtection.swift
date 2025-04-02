@@ -8,8 +8,13 @@
 
 import Foundation
 
+public protocol E2EProtectionDelegate: AnyObject {
+    var isE2EProtectionSupported: Bool { get }
+}
+
 public protocol E2EProtection: AnyObject {
     var e2eCounter: UInt8 { get set }
+    var e2eDelegate: E2EProtectionDelegate? { get set }
     func incrementE2ECounter()
     func resetE2ECounter()
     func appendingE2EProtection(_ request: Data) -> Data

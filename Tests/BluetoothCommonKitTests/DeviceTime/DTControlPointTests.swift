@@ -9,10 +9,15 @@
 import XCTest
 @testable import BluetoothCommonKit
 
-final class DTControlPointTests: XCTestCase {
+final class DTControlPointTests: XCTestCase, E2EProtectionDelegate {
 
-    private var deviceTimeControlPoint = DTControlPoint()
-
+    private var deviceTimeControlPoint = DTControlPointDataHandler()
+    internal var isE2EProtectionSupported: Bool = true
+    
+    override func setUp() {
+        deviceTimeControlPoint.e2eDelegate = self
+    }
+    
     func testOpcode() {
         XCTAssertEqual(DTControlPointOpcode(rawValue: 2), .proposeTimeUpdate)
         XCTAssertNil(DTControlPointOpcode.proposeTimeUpdate.requestOpcode)
@@ -194,7 +199,7 @@ final class DTControlPointTests: XCTestCase {
         let expectedTimeAccuracy = TimeAccuracy.unknown
 
         let expectedDSTOffset = timeZone.dstOffset
-        let request = deviceTimeControlPoint.createProposeTimeUpdateRequest(now, using: timeZone)!
+        let request = deviceTimeControlPoint.createProposeTimeUpdateRequest(now, using: timeZone)
 
         XCTAssertTrue(request.isCRCPrefixValid)
         var index = 2
