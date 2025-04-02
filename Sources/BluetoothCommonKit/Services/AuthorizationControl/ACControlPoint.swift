@@ -234,7 +234,7 @@ extension ACControlPoint: RequestHandler {
             return
         }
 
-        let requestSegments = segmentRequest(request)
+        let requestSegments = segmentPayload(request)
         requestSegments.forEach { requestSegment in
             do {
                 try writeACControlPointRequest(peripherialManager, requestSegment: requestSegment, timeout: timeout)

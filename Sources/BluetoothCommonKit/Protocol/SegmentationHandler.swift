@@ -17,7 +17,7 @@ public protocol SegmentationHandler: AnyObject {
     
     var segmentCounter: UInt8 { get set }
     
-    func segmentRequest(_ request: Data) -> [Data]
+    func segmentPayload(_ payload: Data) -> [Data]
     
     func checkResponseSegment(_ responseSegment: Data) -> Result<Data, DeviceCommError>
     
@@ -37,12 +37,12 @@ public extension SegmentationHandler {
         }
     }
     
-    func segmentRequest(_ request: Data) -> [Data] {
+    func segmentPayload(_ payload: Data) -> [Data] {
         var tempRequest = Data()
         var segmentedRequests: [Data] = []
         var counter = 0
         let segmentCounterInitialValue = segmentCounter
-        while (request.count > maxRequestSize * counter) {
+        while (payload.count > maxRequestSize * counter) {
             tempRequest.removeAll()
             let minRange = maxRequestSize*counter
             let maxRange = maxRequestSize*(counter+1)
@@ -51,10 +51,10 @@ public extension SegmentationHandler {
                 segmentationHeader = segmentationHeader | SegmentationHeader.firstPart.rawValue
             }
             
-            if (request.count > maxRange) {
-                tempRequest.append(request.subdata(in: minRange..<maxRange))
+            if (payload.count > maxRange) {
+                tempRequest.append(payload.subdata(in: minRange..<maxRange))
             } else {
-                tempRequest.append(request.subdata(in: minRange..<request.count))
+                tempRequest.append(payload.subdata(in: minRange..<payload.count))
                 segmentationHeader = segmentationHeader | SegmentationHeader.lastPart.rawValue
             }
             tempRequest.insert(segmentationHeader, at: 0)
