@@ -12,7 +12,9 @@ public extension CBATTError {
     static let e2eCRCCode = 0x81
     static let e2eCounterCode = 0x82
     static let segmentCounterCode = 0x83
+    static let improperlyConfigured = 0xfd
     static let procedureAlreadyInProgressCode = 0xfe
+    static let outOfRange = 0xff
 
     func isE2ECRCError() -> Bool {
         code == CBATTError.Code.e2eCRCCode
@@ -43,8 +45,16 @@ public extension CBATTError.Code {
     static var segmentCounterCode: CBATTError.Code {
         CBATTError.Code(rawValue: CBATTError.segmentCounterCode)!
     }
+    
+    static var improperlyConfigured: CBATTError.Code {
+        CBATTError.Code(rawValue: CBATTError.improperlyConfigured)!
+    }
 
     static var procedureAlreadyInProgress: CBATTError.Code {
         CBATTError.Code(rawValue: CBATTError.procedureAlreadyInProgressCode)!
+    }
+    
+    static var outOfRange: CBATTError.Code {
+        CBATTError.Code(rawValue: CBATTError.outOfRange)!
     }
 }

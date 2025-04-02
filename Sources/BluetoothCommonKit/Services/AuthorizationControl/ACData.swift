@@ -93,7 +93,7 @@ public class ACData: SegmentationHandler {
         let result = securityManager.protectRequest(requestToProtectedResource)
         switch result {
         case .success(let secureRequest):
-            let secureRequestSegments = segmentRequest(secureRequest)
+            let secureRequestSegments = segmentPayload(secureRequest)
             return .success(secureRequestSegments)
         case .failure(let error):
             return .failure(error)

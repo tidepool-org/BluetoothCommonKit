@@ -31,7 +31,7 @@ class SegmentationHandlerTests: XCTestCase, SegmentationHandler {
         var expectedRequest = Data(SegmentationHeader.firstPart.rawValue | SegmentationHeader.lastPart.rawValue | (segmentCountInitialValue << 2))
         expectedRequest.append(request)
         
-        let segmentedRequests = segmentRequest(request)
+        let segmentedRequests = segmentPayload(request)
         
         XCTAssertEqual(segmentedRequests.count, 1)
         XCTAssertEqual(segmentCounter, 1)
@@ -48,7 +48,7 @@ class SegmentationHandlerTests: XCTestCase, SegmentationHandler {
         var expectedSegmentedRequest2 = Data(SegmentationHeader.lastPart.rawValue | ((segmentCountInitialValue+1) << 2))
         expectedSegmentedRequest2.append(contentsOf: stride(from: 20, through: 30, by: 1).map { UInt8($0) })
         
-        let segmentedRequests = segmentRequest(request)
+        let segmentedRequests = segmentPayload(request)
         XCTAssertEqual(segmentedRequests.count, 2)
         XCTAssertEqual(segmentCounter, 2)
         XCTAssertEqual(segmentedRequests[0], expectedSegmentedRequest1)
