@@ -391,7 +391,7 @@ class SecurityManagerTests: XCTestCase {
         message.append(Data(authValue))
         key = SymmetricKey(data: saltKey)
         let expectedConfirmationKey = Data(CryptoKit.HMAC<SHA256>.authenticationCode(for: message, using: key))
-        let confirmationKey = securityManager.calculateConfirmationKey()!
+        let confirmationKey = securityManager.calculateConfirmationKeyClient()!
         XCTAssertEqual(Data(expectedConfirmationKey), confirmationKey)
         
         // calculate expected client confirmation code
@@ -409,8 +409,8 @@ class SecurityManagerTests: XCTestCase {
         let expectedServerConfirmationCode = Data(CryptoKit.HMAC<SHA256>.authenticationCode(for: message, using: key))
         let expectedServerConfirmationCodeLittleEndian = Data(expectedServerConfirmationCode.reversed())
         
-        let confirmationCodeClient = securityManager.calculateGeneratedConfirmationCodeInLittleEndian()
-        let (confirmationCodeServerLittleEndian, _) = securityManager.calculateKeyConfirmationReceivedLittleEndian(receivedRandomNumberLittleEndian: serverRandomNumberLittleEndian)
+        let confirmationCodeClient = securityManager.calculateGeneratedConfirmationCodeInLittleEndianClient()
+        let (confirmationCodeServerLittleEndian, _) = securityManager.calculateKeyConfirmationReceivedLittleEndian(serverRandomNumberLittleEndian: serverRandomNumberLittleEndian)
 
         XCTAssertEqual(expectedClientConfirmationCode, confirmationCodeClient)
         XCTAssertEqual(expectedServerConfirmationCodeLittleEndian, confirmationCodeServerLittleEndian)

@@ -77,7 +77,7 @@ public extension ControlPoint {
         return completionToReturn
     }
     
-    func isExpectedRequest<O: RawRepresentable>(_ request: Data, expectedOpcode: O) -> Bool where O.RawValue: FixedWidthInteger {
+    public func isExpectedRequest<O: RawRepresentable>(_ request: Data, expectedOpcode: O) -> Bool where O.RawValue: FixedWidthInteger {
         guard request.count >= Data(expectedOpcode.rawValue).count else {
             return false
         }

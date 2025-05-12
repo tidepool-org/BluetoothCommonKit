@@ -272,7 +272,7 @@ public class ACControlPointCharacteristic: SegmentationHandler {
                 let keyConfirmationCodeReceived = completeRequest.subdata(in: index..<completeRequest.count)
                 
                 self.securityManager.keyConfirmationCodeReceivedLittleEndian = keyConfirmationCodeReceived
-                guard let keyConfirmationCode = self.securityManager.calculateGeneratedConfirmationCodeInLittleEndian() else {
+                guard let keyConfirmationCode = self.securityManager.calculateGeneratedConfirmationCodeInLittleEndianServer() else {
                     respond(to: .keyExchangeECDHConfirmationCode, with: .procedureNotCompleted)
                     break
                 }
@@ -296,16 +296,16 @@ public class ACControlPointCharacteristic: SegmentationHandler {
                 }
                 
                 let confirmationRandomNumber = completeRequest.subdata(in: index..<completeRequest.count)
-                let (calculatedConfirmationCode, validated) = self.securityManager.calculateKeyConfirmationReceivedLittleEndian(receivedRandomNumberLittleEndian: confirmationRandomNumber)
+                let (calculatedConfirmationCode, validated) = self.securityManager.calculateKeyConfirmationReceivedLittleEndian(clientRandomNumberLittleEndian: confirmationRandomNumber)
 
                 guard validated else {
                     respond(to: .keyExchangeECDHConfirmationRandomNumber, with: .invalidKeyExchangeConfirmationCode)
                     break
                 }
-                let randomNumber = self.securityManager.generatedRandomNumberData
+                
                 var response = Data(ACControlPointOpcode.keyExchangeECDHConfirmationRandomNumberResponse.rawValue)
                 response.append(keyID)
-                response.append(contentsOf: randomNumber)
+                response.append(contentsOf: securityManager.generatedRandomNumberData.reversed())
                 sendResponse(response)
             case .keyExchangeKDF:
                 guard completeRequest.count == 3 else {
@@ -363,7 +363,7 @@ public class ACControlPointCharacteristic: SegmentationHandler {
                 
                 let fixedNonce = completeRequest.subdata(in: index..<completeRequest.count)
                 
-                securityManager.configuration.receivedIVFixedField = fixedNonce
+                securityManager.configuration.receivedIVFixedField = Data(fixedNonce.reversed())
                 respondWithSuccess(to: .setClientNonceFixed)
             case .getATTMTU:
                 var response = Data(ACControlPointOpcode.attMTUResponse.rawValue)

@@ -68,7 +68,7 @@ struct KeyExchangeECDH: RequestHandler {
     
     static func ecdhConfirmationCodeRequest(securityManager: SecurityManager) -> Data? {
         let keyID: KeyID = securityManager.configuration.ecdhKeyID
-        guard let confirmationCode = securityManager.calculateGeneratedConfirmationCodeInLittleEndian() else {
+        guard let confirmationCode = securityManager.calculateGeneratedConfirmationCodeInLittleEndianClient() else {
             return nil
         }
         
@@ -181,7 +181,7 @@ struct KeyExchangeECDH: RequestHandler {
         }
 
         let randomNumber = response.subdata(in: index..<response.count)
-        let (_, validated) = securityManager.calculateKeyConfirmationReceivedLittleEndian(receivedRandomNumberLittleEndian: randomNumber)
+        let (_, validated) = securityManager.calculateKeyConfirmationReceivedLittleEndian(serverRandomNumberLittleEndian: randomNumber)
 
         return validated ? .success(nil) : .failure(.authenticationFailed)
     }

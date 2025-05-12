@@ -225,7 +225,7 @@ class KeyExchangeECDHTests: XCTestCase {
         let parsedResponse = KeyExchangeECDH.handleResponse(keyExchangeECDHResponse, opcode: opcode, securityManager: securityManager)
         XCTAssertNotNil(parsedResponse)
 
-        let expectedClientConfirmationCode = securityManager.calculateGeneratedConfirmationCodeInLittleEndian()
+        let expectedClientConfirmationCode = securityManager.calculateGeneratedConfirmationCodeInLittleEndianClient()
 
         let request = KeyExchangeECDH.ecdhConfirmationCodeRequest(securityManager: securityManager)
         XCTAssertNotNil(request)
@@ -264,7 +264,7 @@ class KeyExchangeECDHTests: XCTestCase {
         }
 
         // calculate the confirmation key
-        guard let confirmationKey = securityManager.calculateConfirmationKey() else {
+        guard let confirmationKey = securityManager.calculateConfirmationKeyClient() else {
             XCTAssert(false, "calculating the confirmation key failed")
             return
         }
@@ -337,7 +337,7 @@ class KeyExchangeECDHTests: XCTestCase {
         }
 
         // calculate the confirmation key
-        guard let confirmationKey = securityManager.calculateConfirmationKey() else {
+        guard let confirmationKey = securityManager.calculateConfirmationKeyClient() else {
             XCTAssert(false, "calculating the confirmation key failed")
             return
         }

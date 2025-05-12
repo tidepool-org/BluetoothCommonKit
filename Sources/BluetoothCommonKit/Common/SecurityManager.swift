@@ -239,10 +239,22 @@ public class SecurityManager {
     }
 
     //MARK: - ECDH and related confirmation
-    public func calculateGeneratedConfirmationCodeInLittleEndian() -> Data? {
+    public func calculateGeneratedConfirmationCodeInLittleEndianClient() -> Data? {
         let message = generatedRandomNumberData
         
-        guard var confirmationCode = calculateKeyConfirmationCode(message: message) else {
+        guard var confirmationCode = calculateKeyConfirmationCodeClient(message: message) else {
+            return nil
+        }
+        // security manager uses big endian. provide little endian
+        confirmationCode.reverse()
+        
+        return confirmationCode
+    }
+    
+    public func calculateGeneratedConfirmationCodeInLittleEndianServer() -> Data? {
+        let message = generatedRandomNumberData
+        
+        guard var confirmationCode = calculateKeyConfirmationCodeServer(message: message) else {
             return nil
         }
         // security manager uses big endian. provide little endian
@@ -317,8 +329,8 @@ public class SecurityManager {
         return authValue
     }
     
-    func calculateKeyConfirmationCode(message: Data) -> Data? {
-        guard let confirmationKey = calculateConfirmationKey() else {
+    func calculateKeyConfirmationCodeClient(message: Data) -> Data? {
+        guard let confirmationKey = calculateConfirmationKeyClient() else {
             return nil
         }
         
@@ -328,11 +340,35 @@ public class SecurityManager {
         return confirmationCode
     }
     
-    func calculateKeyConfirmationReceivedLittleEndian(receivedRandomNumberLittleEndian: Data) -> (calculatedConfirmationCode: Data?, validated: Bool) {
-        // the security manager works in big endian
-        let message = Data(receivedRandomNumberLittleEndian.reversed())
+    func calculateKeyConfirmationCodeServer(message: Data) -> Data? {
+        guard let confirmationKey = calculateConfirmationKeyServer() else {
+            return nil
+        }
         
-        guard var calculatedKeyConfirmationReceived = calculateKeyConfirmationCode(message: message) else {
+        let key = SymmetricKey(data: confirmationKey)
+        let confirmationCode = Data(CryptoKit.HMAC<SHA256>.authenticationCode(for: message, using: key))
+        
+        return confirmationCode
+    }
+    
+    func calculateKeyConfirmationReceivedLittleEndian(serverRandomNumberLittleEndian: Data) -> (calculatedConfirmationCode: Data?, validated: Bool) {
+        // the security manager works in big endian
+        let message = Data(serverRandomNumberLittleEndian.reversed())
+        
+        guard var calculatedKeyConfirmationReceived = calculateKeyConfirmationCodeClient(message: message) else {
+            return (nil, false)
+        }
+        // security manager uses big endian. provide little endian
+        calculatedKeyConfirmationReceived.reverse()
+        
+        return (calculatedKeyConfirmationReceived, calculatedKeyConfirmationReceived == keyConfirmationCodeReceivedLittleEndian)
+    }
+    
+    func calculateKeyConfirmationReceivedLittleEndian(clientRandomNumberLittleEndian: Data) -> (calculatedConfirmationCode: Data?, validated: Bool) {
+        // the security manager works in big endian
+        let message = Data(clientRandomNumberLittleEndian.reversed())
+        
+        guard var calculatedKeyConfirmationReceived = calculateKeyConfirmationCodeServer(message: message) else {
             return (nil, false)
         }
         // security manager uses big endian. provide little endian
@@ -533,7 +569,7 @@ extension SecurityManager {
         
         var receivedIVFixedField: Data = Data(UInt32(0xcafeaffe))
         
-        var generatedIVFixedField: Data?
+        public var generatedIVFixedField: Data?
         
         var sequenceNumber: UInt64 = 0
         

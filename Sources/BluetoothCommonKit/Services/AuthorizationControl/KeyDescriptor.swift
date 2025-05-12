@@ -81,7 +81,7 @@ struct KeyDescriptor: RequestHandler {
                     // key ID
                     let keyID = response[response.startIndex.advanced(by: index)...].to(KeyID.self)
                     index += 2
-                    securityManager.configuration.algorithmKeyID = keyID //Test this
+                    securityManager.configuration.algorithmKeyID = recordValue
 
                     _ = MessageType(rawValue: response[response.startIndex.advanced(by: index)...].to(UInt8.self))
                     index += 1

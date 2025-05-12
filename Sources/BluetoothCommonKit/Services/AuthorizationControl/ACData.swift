@@ -10,14 +10,14 @@ import CoreBluetooth
 import os.log
 
 // MARK: - Support Server Implementation
-public protocol ACSDataCharacteristicDelegate: AnyObject {
+public protocol ACDataCharacteristicDelegate: AnyObject {
     func processRequest(_ request: Data, for resourceHandle: ResourceHandle)
 }
 
-public class ACSDataCharacteristic: SegmentationHandler {
-    private let log = OSLog(category: "ACSDataCharacteristic")
+public class ACDataCharacteristic: SegmentationHandler {
+    private let log = OSLog(category: "ACDataCharacteristic")
     
-    public weak var delegate: ACSDataCharacteristicDelegate?
+    public weak var delegate: ACDataCharacteristicDelegate?
     
     public var maxRequestSize: Int
     
@@ -32,9 +32,9 @@ public class ACSDataCharacteristic: SegmentationHandler {
     var status : ACStatusCharacteristic
     
     public init(messageQueue: MessagingQueue,
-         securityManager: SecurityManager,
-         status: ACStatusCharacteristic,
-         maxRequestSize: Int)
+                securityManager: SecurityManager,
+                status: ACStatusCharacteristic,
+                maxRequestSize: Int)
     {
         self.messageQueue = messageQueue
         self.securityManager = securityManager
@@ -80,6 +80,65 @@ public class ACSDataCharacteristic: SegmentationHandler {
             log.debug("segmentation error: %{public}@", error.localizedDescription)
         }
         return .success
+    }
+    
+    func prepareSecureMessageSegments(_ message: Data?,
+                                      resourceHandle: ResourceHandle) -> Result<[Data], SecurityManagerError>
+    {
+        var requestToProtectedResource = Data(resourceHandle)
+        if let message = message {
+            requestToProtectedResource.append(message)
+        }
+        let result = securityManager.protectRequest(requestToProtectedResource)
+        switch result {
+        case .success(let secureRequest):
+            let secureRequestSegments = segmentPayload(secureRequest)
+            return .success(secureRequestSegments)
+        case .failure(let error):
+            return .failure(error)
+        }
+    }
+    
+    public func sendSecureIndication(_ message: Data, to resourceHandle: ResourceHandle) {
+        if messageQueue.gattServer.isCharacteristicSubscribed(ACCharacteristicUUID.dataOutIndicate.cbUUID) ?? false {
+            let result = prepareSecureMessageSegments(message, resourceHandle: resourceHandle)
+            switch result {
+            case .success(let secureSegments):
+                for secureSegment in secureSegments {
+                    let valuepair = UUIDValuePair(
+                        uuid: ACCharacteristicUUID.dataOutIndicate.cbUUID,
+                        value: secureSegment
+                    )
+                    log.debug("%{public}@", valuepair.description)
+                    messageQueue.addQueueItem(valuepair)
+                }
+            case .failure(let error):
+                log.error("Could not prepare secure messages %{public}@", String(describing: error))
+            }
+        } else {
+            log.debug("AC Data Out Indicate characteristic is not configured for indications")
+        }
+    }
+    
+    public func sendSecureNotification(_ message: Data, to resourceHandle: ResourceHandle) {
+        if messageQueue.gattServer.isCharacteristicSubscribed(ACCharacteristicUUID.dataOutNotify.cbUUID) ?? false {
+            let result = prepareSecureMessageSegments(message, resourceHandle: resourceHandle)
+            switch result {
+            case .success(let secureSegments):
+                for secureSegment in secureSegments {
+                    let valuepair = UUIDValuePair(
+                        uuid: ACCharacteristicUUID.dataOutNotify.cbUUID,
+                        value: secureSegment
+                    )
+                    log.debug("%{public}@", valuepair.description)
+                    messageQueue.addQueueItem(valuepair)
+                }
+            case .failure(let error):
+                log.error("Could not prepare secure messages %{public}@", String(describing: error))
+            }
+        } else {
+            log.debug("AC Data Out Notify characteristic is not configured for notifications")
+        }
     }
 }
 
@@ -158,8 +217,8 @@ public class ACDataDataHandler: SegmentationHandler {
         try peripherialManager.writeACDataRequest(request, timeout: timeout)
     }
     
-    func prepareSecureRequestSegments(_ request: Data?,
-                                      resourceHandle: ResourceHandle) -> Result<[Data], SecurityManagerError>
+    public func prepareSecureRequestSegments(_ request: Data?,
+                                             resourceHandle: ResourceHandle) -> Result<[Data], SecurityManagerError>
     {
         var requestToProtectedResource = Data(resourceHandle)
         if let request = request {
