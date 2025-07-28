@@ -473,6 +473,8 @@ public class ACControlPointDataHandler: SegmentationHandler, ControlPoint {
     
     let securityManager: SecurityManager
     
+    var features: FeaturesFlag = []
+    
     public init(securityManager: SecurityManager, maxRequestSize: Int) {
         self.securityManager = securityManager
         self.maxRequestSize = maxRequestSize
@@ -537,6 +539,7 @@ public class ACControlPointDataHandler: SegmentationHandler, ControlPoint {
             let result = ACFeatureDataHandler.handleResponse(completeResponse)
             switch result {
             case .success(let features):
+                self.features = features
                 return (.success(features), completion)
             case .failure(let error):
                 return (.failure(error), completion)
@@ -566,7 +569,15 @@ public class ACControlPointDataHandler: SegmentationHandler, ControlPoint {
             switch result {
             case .success:
                 queueSetClientFixedNonceRequest()
-                queueGetPHDCertificateNonce()
+                if features.contains(.keyFormatClientX509Supported) {
+                    // take the x509 path
+                    queueGetPHDCertificateNonce()
+                } else {
+                    // take the uncompressed key path
+                    queueStartKeyExchangeRequest()
+                    queueECDHPublicKeyRequest()
+                    queueKeyExchangeKDFRequest()
+                }
                 return (.success(nil), completion)
             default:
                 return (result, completion)
@@ -804,6 +815,14 @@ extension ACControlPointDataHandler: RequestHandler {
 
     func queueGetPHDCertificateNonce(completion: ProcedureResultCompletion? = nil) {
         appendToRequestQueue(createGetPHDCertificateNonceRequest(), completion: completion)
+    }
+    
+    public func queueECDHPublicKeyRequest(completion: ProcedureResultCompletion? = nil) {
+        guard let request = createECDHPublicKeyRequest() else {
+            completion?(.failure(.deviceNotReady))
+            return
+        }
+        appendToRequestQueue(request, completion: completion)
     }
     
     public func queueECDHPublicKeyRequest(certificateData: Data, completion: ProcedureResultCompletion? = nil) {

@@ -9,10 +9,10 @@
 import XCTest
 @testable import BluetoothCommonKit
 
-class MockKeychainManager: SecurePersistentAuthentication {
+public class MockKeychainManager: SecurePersistentAuthentication {
     var storage: [String: Data] = [:]
     
-    func setAuthenticationData(_ data: Data?, for keyService: String?) throws {
+    public func setAuthenticationData(_ data: Data?, for keyService: String?) throws {
         guard let keyService = keyService else {
             return
         }
@@ -20,7 +20,7 @@ class MockKeychainManager: SecurePersistentAuthentication {
         storage[keyService] = data
     }
 
-    func getAuthenticationData(for keyService: String?) -> Data? {
+    public func getAuthenticationData(for keyService: String?) -> Data? {
         guard let keyService = keyService else {
             return nil
         }
