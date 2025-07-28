@@ -511,9 +511,9 @@ extension SecurityManager {
             // In combined mode, the authentication tag is appended to the encrypted message. This is usually what you want.
             var ciphertextAndMac = ciphertext
             ciphertextAndMac.append(mac)
-            let gcm = GCM(iv: nonceData.bytes, tagLength: 8, mode: .combined)
-            let aes = try CryptoSwift.AES(key: keyData.bytes, blockMode: gcm, padding: .noPadding)
-            let plaintext = try Data(aes.decrypt(ciphertextAndMac.bytes))
+            let gcm = GCM(iv: nonceData.byteArray, tagLength: 8, mode: .combined)
+            let aes = try CryptoSwift.AES(key: keyData.byteArray, blockMode: gcm, padding: .noPadding)
+            let plaintext = try Data(aes.decrypt(ciphertextAndMac.byteArray))
             return .success(plaintext)
         } catch let error {
             log.error("Error decrypting %{public}@ ciphertext: %{public}@ nonce: %{public}@ mac: %{public}@", String(describing: error), ciphertext.hexadecimalString, nonceData.hexadecimalString,  mac.hexadecimalString)

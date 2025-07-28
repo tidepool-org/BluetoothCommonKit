@@ -171,11 +171,11 @@ class SecurityManagerTests: XCTestCase {
         let expectedMACBigEndian = Data(hexadecimalString: "baecdc91e9a1fc3572adf1e4232ae285")!
         let expectedMACLittleEndian = Data(hexadecimalString: "85e22a23e4f1ad7235fca1e991dcecba")!
         
-        var mac = try! CMAC(key: keyDataBigEndian.bytes).authenticate(messageBigEndian.bytes)
+        var mac = try! CMAC(key: keyDataBigEndian.byteArray).authenticate(messageBigEndian.byteArray)
         XCTAssertEqual(expectedMACBigEndian, Data(mac))
         
         // proof that endianness matters
-        mac = try! CMAC(key: keyDataLittleEndian.bytes).authenticate(messageLittleEndian.bytes)
+        mac = try! CMAC(key: keyDataLittleEndian.byteArray).authenticate(messageLittleEndian.byteArray)
         XCTAssertNotEqual(expectedMACBigEndian, Data(mac))
         XCTAssertNotEqual(expectedMACLittleEndian, Data(mac))
     }
@@ -296,16 +296,16 @@ class SecurityManagerTests: XCTestCase {
         let expectedConfirmationACServer = Data(hexadecimalString: "c6c9bffc4f80d1743722c48d8e350faa")
         let expectedConfirmationACClient = Data(hexadecimalString: "40f07f35e3d3579354d5c4906b60ac10")
         
-        let salt = try! CMAC(key: zero.bytes).authenticate(publicKeyACServerACClient.bytes)
+        let salt = try! CMAC(key: zero.byteArray).authenticate(publicKeyACServerACClient.byteArray)
         XCTAssertEqual(Data(salt), expectedSalt)
         
-        let confirmationKey = try! CMAC(key: salt).authenticate(ecdhSecret.bytes)
+        let confirmationKey = try! CMAC(key: salt).authenticate(ecdhSecret.byteArray)
         XCTAssertEqual(Data(confirmationKey), expectedConfirmationKey)
         
-        let confirmationACServer = try! CMAC(key: confirmationKey).authenticate(randomNumberACServerOOB.bytes)
+        let confirmationACServer = try! CMAC(key: confirmationKey).authenticate(randomNumberACServerOOB.byteArray)
         XCTAssertEqual(Data(confirmationACServer), expectedConfirmationACServer)
         
-        let confirmationACClient = try! CMAC(key: confirmationKey).authenticate(randomNumberACClientOOB.bytes)
+        let confirmationACClient = try! CMAC(key: confirmationKey).authenticate(randomNumberACClientOOB.byteArray)
         XCTAssertEqual(Data(confirmationACClient), expectedConfirmationACClient)
     }
     
@@ -343,16 +343,16 @@ class SecurityManagerTests: XCTestCase {
         let expectedConfirmationACServer = Data(hexadecimalString: "fb69d9f98bb0de09569bb0900763dac6")
         let expectedConfirmationACClient = Data(hexadecimalString: "5e88fc3a1ba0a3de8fea2d02fdff8ece")
 
-        let salt = try! CMAC(key: zero.bytes).authenticate(publicKeyACServerACClient.bytes)
+        let salt = try! CMAC(key: zero.byteArray).authenticate(publicKeyACServerACClient.byteArray)
         XCTAssertEqual(Data(salt), expectedSalt)
 
-        let confirmationKey = try! CMAC(key: salt).authenticate(ecdhKey.bytes)
+        let confirmationKey = try! CMAC(key: salt).authenticate(ecdhKey.byteArray)
         XCTAssertEqual(Data(confirmationKey), expectedConfirmationKey)
 
-        let confirmationACServer = try! CMAC(key: confirmationKey).authenticate(randomNumberACServerOOB.bytes)
+        let confirmationACServer = try! CMAC(key: confirmationKey).authenticate(randomNumberACServerOOB.byteArray)
         XCTAssertEqual(Data(confirmationACServer), expectedConfirmationACServer)
 
-        let confirmationACClient = try! CMAC(key: confirmationKey).authenticate(randomNumberACClientOOB.bytes)
+        let confirmationACClient = try! CMAC(key: confirmationKey).authenticate(randomNumberACClientOOB.byteArray)
         XCTAssertEqual(Data(confirmationACClient), expectedConfirmationACClient)
     }
     
