@@ -90,6 +90,8 @@ public class ACControlPointCharacteristic: SegmentationHandler {
                 response = Data(ACControlPointOpcode.keyDescriptorResponse.rawValue)
                 response.append(contentsOf: keyDescriptor)
                 sendResponse(response)
+                
+                respondWithSuccess(to: .getAllActiveDescriptors)
             case .getRestrictionMapDescriptor:
                 guard completeRequest.count == 5 else {
                     respond(to: .getRestrictionMapDescriptor, with: .invalidOperand)
@@ -296,7 +298,7 @@ public class ACControlPointCharacteristic: SegmentationHandler {
                 }
                 
                 let confirmationRandomNumber = completeRequest.subdata(in: index..<completeRequest.count)
-                let (calculatedConfirmationCode, validated) = self.securityManager.calculateKeyConfirmationReceivedLittleEndian(clientRandomNumberLittleEndian: confirmationRandomNumber)
+                let (_, validated) = self.securityManager.calculateKeyConfirmationReceivedLittleEndian(clientRandomNumberLittleEndian: confirmationRandomNumber)
 
                 guard validated else {
                     respond(to: .keyExchangeECDHConfirmationRandomNumber, with: .invalidKeyExchangeConfirmationCode)
@@ -306,6 +308,12 @@ public class ACControlPointCharacteristic: SegmentationHandler {
                 var response = Data(ACControlPointOpcode.keyExchangeECDHConfirmationRandomNumberResponse.rawValue)
                 response.append(keyID)
                 response.append(contentsOf: securityManager.generatedRandomNumberData.reversed())
+                sendResponse(response)
+                
+                // send key exchange successful response
+                response = Data(ACControlPointOpcode.keyExchangeResponse.rawValue)
+                response.append(keyID)
+                response.append(KeyExchangeResponseCode.successful.rawValue)
                 sendResponse(response)
             case .keyExchangeKDF:
                 guard completeRequest.count == 3 else {
@@ -574,6 +582,7 @@ public class ACControlPointDataHandler: SegmentationHandler, ControlPoint {
                     queueGetPHDCertificateNonce()
                 } else {
                     // take the uncompressed key path
+                    securityManager.generateKeyPair()
                     queueStartKeyExchangeRequest()
                     queueECDHPublicKeyRequest()
                     queueKeyExchangeKDFRequest()

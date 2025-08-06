@@ -82,8 +82,8 @@ public class ACDataCharacteristic: SegmentationHandler {
         return .success
     }
     
-    func prepareSecureMessageSegments(_ message: Data?,
-                                      resourceHandle: ResourceHandle) -> Result<[Data], SecurityManagerError>
+    public func prepareSecureMessageSegments(_ message: Data?,
+                                             resourceHandle: ResourceHandle) -> Result<[Data], SecurityManagerError>
     {
         var requestToProtectedResource = Data(resourceHandle)
         if let message = message {

@@ -26,8 +26,17 @@ public class DTControlPointCharacteristic: E2EProtection {
         guard let request = request else {
             return CBATTError.Code.invalidPdu
         }
-
-        var index = (e2eDelegate?.isE2EProtectionSupported ?? false) ? 2 : 0 // skip CRC
+        
+        guard let response = responseForRequest(request) else {
+            return CBATTError.Code.commandNotSupported
+        }
+        
+        sendResponse(response)
+        return CBATTError.Code.success
+    }
+    
+    public func responseForRequest(_ request: Data) -> Data? {
+        var index = e2eDelegate?.isE2EProtectionSupported == true ? 2 : 0 // skip CRC
         let requestOpcode = DTControlPointOpcode(rawValue: request[request.startIndex.advanced(by: index)...].to(DTControlPointOpcode.RawValue.self))
         index += 2
         
@@ -35,33 +44,36 @@ public class DTControlPointCharacteristic: E2EProtection {
         case .proposeTimeUpdate:
             ConsoleOut.shared.logMessage(message: "Opcode proposeTimeUpdate (opcode: \(String(describing: requestOpcode)))")
             // all proposed time updates to set time are accepted even though time is not set
-            respondWithSuccess(to: .proposeTimeUpdate)
+            return createRespondWithSuccess(to: .proposeTimeUpdate)
         case .forceTimeUpdate, .proposeNonLoggedTimeAdjustmentLimit, .reportActiveTimeAdjustments, .retrieveActiveTimeAdjustments:
-            responseWithResponseCode(.opcodeNotSupported, to: requestOpcode!)
+            return createResponseWithResponseCode(.opcodeNotSupported, to: requestOpcode!)
         default:
             ConsoleOut.shared.logMessage(message: "Command not supported")
-            return CBATTError.Code.commandNotSupported
+            return nil
         }
-        return CBATTError.Code.success
     }
     
-    public func respondWithSuccess(to requestOpcode: DTControlPointOpcode) {
-        responseWithResponseCode(.success, to: requestOpcode)
+    public func createRespondWithSuccess(to requestOpcode: DTControlPointOpcode) -> Data {
+        return createResponseWithResponseCode(.success, to: requestOpcode)
     }
     
-    public func responseWithResponseCode(_ responseCode: DTControlPointResponseCode, to requestOpcode: DTControlPointOpcode) {
+    public func createResponseWithResponseCode(_ responseCode: DTControlPointResponseCode, to requestOpcode: DTControlPointOpcode) -> Data {
         ConsoleOut.shared.logMessage(message: "\(#function) requestOpcode: \(requestOpcode) responseCode: \(responseCode)")
         var response = Data(DTControlPointOpcode.responseCode.rawValue)
         response.append(requestOpcode.rawValue)
         response.append(responseCode.rawValue)
-        sendResponse(response)
+        return addE2EProtection(response: response)
     }
     
-    public func sendResponse(_ response: Data) {
+    public func addE2EProtection(response: Data) -> Data {
         var response = response
         if e2eDelegate?.isE2EProtectionSupported ?? false {
             response = response.appendingCRCPrefix()
         }
+        return response
+    }
+    
+    public func sendResponse(_ response: Data) {
         messageQueue.addQueueItem(
             UUIDValuePair(
                 uuid: DeviceTimeCharacteristicUUID.controlPoint.cbUUID,
@@ -155,7 +167,8 @@ public class DTControlPointDataHandler: ControlPoint, E2EProtection {
     }
 
     public func procedureIDForRequest(_ request: Data) -> ProcedureID {
-        guard let procedureID = DTControlPointOpcode(rawValue: request[request.startIndex.advanced(by: 2)...].to(DTControlPointOpcode.RawValue.self))?.procedureID else {
+        let opcodeIndex = e2eDelegate?.isE2EProtectionSupported == true ? 2 : 0 // skip CRC
+        guard let procedureID = DTControlPointOpcode(rawValue: request[request.startIndex.advanced(by: opcodeIndex)...].to(DTControlPointOpcode.RawValue.self))?.procedureID else {
             fatalError("Opcode does not have a procedure ID \(request.toHexString())")
         }
         return procedureID

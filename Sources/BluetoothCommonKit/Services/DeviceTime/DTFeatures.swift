@@ -47,10 +47,10 @@ public class DTFeaturesCharacteristic: E2EProtection {
 }
 
 // MARK: - Support Client Implementation
-struct DTFeaturesDataHandler {
+public struct DTFeaturesDataHandler {
     static private let log = OSLog(category: "DTFeatures")
     
-    static func handleData(_ data: Data) -> DeviceCommResult<DTFeatureFlag> {
+    public static func handleData(_ data: Data) -> DeviceCommResult<DTFeatureFlag> {
         guard data.count == 4 else {
             log.error("device time feature characteristic incorrect format.")
             return .failure(.invalidFormat)
@@ -91,25 +91,29 @@ extension PeripheralManager {
 }
 
 //MARK: - Option sets
-struct DTFeatureFlag: OptionSet, Hashable, CustomStringConvertible {
-    let rawValue: UInt16
+public struct DTFeatureFlag: OptionSet, Hashable, CustomStringConvertible, Sendable {
+    public let rawValue: UInt16
+    
+    public init(rawValue: UInt16) {
+        self.rawValue = rawValue
+    }
 
-    static let supportedE2ECRC  = DTFeatureFlag(rawValue: 1 << 0)
-    static let supportedTimeChangeLogging = DTFeatureFlag(rawValue: 1 << 1)
-    static let supportedBaseTimeSecondFractions = DTFeatureFlag(rawValue: 1 << 2)
-    static let supportedTimeDateDisplayToUser = DTFeatureFlag(rawValue: 1 << 3)
-    static let supportedDisplayedFormats = DTFeatureFlag(rawValue: 1 << 4)
-    static let supportedDisplayedFormatsChangeable = DTFeatureFlag(rawValue: 1 << 5)
-    static let supportedSeparateUserTimeline = DTFeatureFlag(rawValue: 1 << 6)
-    static let supportedAuthorizationRequired = DTFeatureFlag(rawValue: 1 << 7)
-    static let supportedRTCDriftTracking = DTFeatureFlag(rawValue: 1 << 8)
-    static let supportedEpochYear1900 = DTFeatureFlag(rawValue: 1 << 9)
-    static let supportedEpochYear2000 = DTFeatureFlag(rawValue: 1 << 10)
-    static let supportedProposeNonLoggedTimeAdjustmentLimit = DTFeatureFlag(rawValue: 1 << 11)
-    static let supportedRetrieveActiveTimeAdjustments = DTFeatureFlag(rawValue: 1 << 12)
-    static let allZeros = DTFeatureFlag([])
+    public static let supportedE2ECRC  = DTFeatureFlag(rawValue: 1 << 0)
+    public static let supportedTimeChangeLogging = DTFeatureFlag(rawValue: 1 << 1)
+    public static let supportedBaseTimeSecondFractions = DTFeatureFlag(rawValue: 1 << 2)
+    public static let supportedTimeDateDisplayToUser = DTFeatureFlag(rawValue: 1 << 3)
+    public static let supportedDisplayedFormats = DTFeatureFlag(rawValue: 1 << 4)
+    public static let supportedDisplayedFormatsChangeable = DTFeatureFlag(rawValue: 1 << 5)
+    public static let supportedSeparateUserTimeline = DTFeatureFlag(rawValue: 1 << 6)
+    public static let supportedAuthorizationRequired = DTFeatureFlag(rawValue: 1 << 7)
+    public static let supportedRTCDriftTracking = DTFeatureFlag(rawValue: 1 << 8)
+    public static let supportedEpochYear1900 = DTFeatureFlag(rawValue: 1 << 9)
+    public static let supportedEpochYear2000 = DTFeatureFlag(rawValue: 1 << 10)
+    public static let supportedProposeNonLoggedTimeAdjustmentLimit = DTFeatureFlag(rawValue: 1 << 11)
+    public static let supportedRetrieveActiveTimeAdjustments = DTFeatureFlag(rawValue: 1 << 12)
+    public static let allZeros = DTFeatureFlag([])
 
-    static let debugDescriptions: [DTFeatureFlag: String] = {
+    public static let debugDescriptions: [DTFeatureFlag: String] = {
         var descriptions = [DTFeatureFlag: String]()
         descriptions[.supportedE2ECRC] = "supportedE2ECRC"
         descriptions[.supportedTimeChangeLogging] = "supportedTimeChangeLogging"
