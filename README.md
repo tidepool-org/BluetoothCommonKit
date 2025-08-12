@@ -1,6 +1,6 @@
-# BlueoothCommongKit
+# BlueoothCommonKit
 
-BluetoothCommonKit provides common services, extensions, and managers to support device integration into a [LoopKit](https://github.com/tidepool-org/LoopKit) based iOS app.
+BluetoothCommonKit provides common services based on published Bluetooth specifications. Following in a list of the included services and helper functions.
 
 ## Included Services
 
