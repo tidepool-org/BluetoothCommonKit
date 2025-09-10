@@ -10,14 +10,14 @@ import CoreBluetooth
 import os.log
 
 // MARK: - Support Server implementation
-public class DTControlPointCharacteristic: E2EProtection {
+public class DTControlPointCharacteristic: WritableCharacteristic, E2EProtection {
     public var e2eCounter: UInt8 = 0
 
     public weak var e2eDelegate: E2EProtectionDelegate?
     
     var messageQueue: MessagingQueue
     
-    public init(messageQueue: MessagingQueue) {
+    public required init(messageQueue: MessagingQueue) {
         self.messageQueue = messageQueue
     }
 

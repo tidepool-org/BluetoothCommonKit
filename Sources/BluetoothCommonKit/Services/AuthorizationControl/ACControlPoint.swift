@@ -25,28 +25,23 @@ public protocol ACControlPointDelegate: AnyObject {
     func invalidateKey()
 }
 
-public class ACControlPointCharacteristic: SegmentationHandler {
+public class ACControlPointCharacteristic: WritableCharacteristic, SegmentationHandler {
     private let log = OSLog(category: "ACControlPointCharacteristic")
     
     var messageQueue: MessagingQueue
     
     public weak var delegate: ACControlPointDelegate?
     
-    var securityManager: SecurityManager!
+    public var securityManager: SecurityManager!
     
-    public var maxRequestSize: Int
+    public var maxRequestSize: Int = 19
     
     public var storedPayloads: [Data] = []
     
     public var lockedSegmentCounter: Locked<UInt8> = Locked(0)
     
-    public init(messageQueue: MessagingQueue,
-                securityManager: SecurityManager,
-                maxRequestSize: Int)
-    {
+    public required init(messageQueue: MessagingQueue) {
         self.messageQueue = messageQueue
-        self.securityManager = securityManager
-        self.maxRequestSize = maxRequestSize
     }
     
     public func onWrite(_ request: Data?) -> CBATTError.Code {
