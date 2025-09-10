@@ -9,6 +9,16 @@
 import Foundation
 import CoreBluetooth
 
+public protocol WritableCharacteristic {
+    init(messageQueue: MessagingQueue)
+    func onWrite(_ request: Data?) -> CBATTError.Code
+}
+
+public protocol ReadableCharacteristic {
+    init(messageQueue: MessagingQueue)
+    func onRead() -> (CBATTError.Code, Data)
+}
+
 public protocol GATTServiceDelegate: AnyObject {
     func centralDidSubscribe(characteristicUUID: CBUUID)
     func centralDidUnsubscribe(characteristicUUID: CBUUID)
