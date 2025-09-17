@@ -14,12 +14,12 @@ public protocol ACDataCharacteristicDelegate: AnyObject {
     func processRequest(_ request: Data, for resourceHandle: ResourceHandle)
 }
 
-public class ACDataCharacteristic: SegmentationHandler {
+public class ACDataCharacteristic: WritableCharacteristic, SegmentationHandler {
     private let log = OSLog(category: "ACDataCharacteristic")
     
     public weak var delegate: ACDataCharacteristicDelegate?
     
-    public var maxRequestSize: Int
+    public var maxRequestSize: Int = 19
     
     public var storedPayloads: [Data] = []
     
@@ -27,19 +27,12 @@ public class ACDataCharacteristic: SegmentationHandler {
     
     var messageQueue: MessagingQueue
     
-    var securityManager: SecurityManager
+    public var securityManager: SecurityManager!
     
-    var status : ACStatusCharacteristic
+    public var status : ACStatusCharacteristic!
     
-    public init(messageQueue: MessagingQueue,
-                securityManager: SecurityManager,
-                status: ACStatusCharacteristic,
-                maxRequestSize: Int)
-    {
+    public required init(messageQueue: MessagingQueue) {
         self.messageQueue = messageQueue
-        self.securityManager = securityManager
-        self.status = status
-        self.maxRequestSize = maxRequestSize
     }
  
     public func onWrite(_ secureRequest: Data?) -> CBATTError.Code {

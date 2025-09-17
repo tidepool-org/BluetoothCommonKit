@@ -13,13 +13,13 @@ import os.log
 public typealias RestrictionMapID = UInt16
 
 // MARK: - Support Server Implementation
-public class ACStatusCharacteristic {
+public class ACStatusCharacteristic: ReadableCharacteristic {
     private let log = OSLog(category: "ACStatusCharacteristic")
     var messageQueue: MessagingQueue
     public var isSecurityEstablished = false
     public var currentRestrictionMapID: RestrictionMapID = 1
 
-    public init(messageQueue: MessagingQueue) {
+    public required init(messageQueue: MessagingQueue) {
         self.messageQueue = messageQueue
     }
     

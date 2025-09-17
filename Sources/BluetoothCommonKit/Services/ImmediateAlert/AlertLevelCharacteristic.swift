@@ -10,10 +10,10 @@ import CoreBluetooth
 import AVFoundation
 
 // MARK: - Support Server Implementation
-public class AlertLevelCharacteristic {
+public class AlertLevelCharacteristic: WritableCharacteristic {
     var messageQueue: MessagingQueue
     
-    public init(messageQueue: MessagingQueue) {
+    public required init(messageQueue: MessagingQueue) {
         self.messageQueue = messageQueue
     }
     

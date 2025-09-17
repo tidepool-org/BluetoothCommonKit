@@ -10,7 +10,7 @@
 import Foundation
 import CoreBluetooth
 
-public class BatteryLevelCharacteristic {
+public class BatteryLevelCharacteristic: ReadableCharacteristic {
     var messageQueue: MessagingQueue
 
     private var batteryNotificationTimer: Timer? = nil
@@ -19,7 +19,7 @@ public class BatteryLevelCharacteristic {
         messageQueue.gattServer.isCharacteristicSubscribed(CBUUID(string: BatteryCharacteristicUUID.batteryLevel.rawValue)) == true
     }
 
-    public init(messageQueue: MessagingQueue) {
+    public required init(messageQueue: MessagingQueue) {
         self.messageQueue = messageQueue
         batteryNotificationTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
             self.sendUpdate()
