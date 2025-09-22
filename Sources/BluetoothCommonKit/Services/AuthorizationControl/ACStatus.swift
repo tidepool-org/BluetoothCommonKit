@@ -13,7 +13,7 @@ import os.log
 public typealias RestrictionMapID = UInt16
 
 // MARK: - Support Server Implementation
-public class ACStatusCharacteristic: ReadableCharacteristic {
+public class ACStatusCharacteristic: ReadableCharacteristic, IndicativeCharacertistic {
     private let log = OSLog(category: "ACStatusCharacteristic")
     var messageQueue: MessagingQueue
     public var isSecurityEstablished = false
@@ -43,10 +43,14 @@ public class ACStatusCharacteristic: ReadableCharacteristic {
     }
     
     public func triggerIndication() {
+        indicateResponse(createData())
+    }
+    
+    public func indicateResponse(_ response: Data) {
         if messageQueue.gattServer.isCharacteristicSubscribed(ACCharacteristicUUID.status.cbUUID) ?? false {
             let valuepair = UUIDValuePair(
                 uuid: ACCharacteristicUUID.status.cbUUID,
-                value: createData()
+                value: response
             )
             log.debug("%{public}@", valuepair.description)
             messageQueue.addQueueItem(valuepair)
