@@ -19,6 +19,11 @@ public protocol ReadableCharacteristic {
     func onRead() -> (CBATTError.Code, Data)
 }
 
+public protocol IndicativeCharacertistic {
+    init(messageQueue: MessagingQueue)
+    func indicateResponse(_ response: Data)
+}
+
 public protocol GATTServiceDelegate: AnyObject {
     func centralDidSubscribe(characteristicUUID: CBUUID)
     func centralDidUnsubscribe(characteristicUUID: CBUUID)
