@@ -184,7 +184,7 @@ public class DTControlPointDataHandler: ControlPoint, E2EProtection {
     }
 
     public func isExpectedRequest<O: RawRepresentable>(_ request: Data, expectedOpcode: O) -> Bool where O.RawValue: FixedWidthInteger {
-        let opcodeIndex = 2
+        let opcodeIndex = e2eDelegate?.isE2EProtectionSupported ?? false ? 2 : 0
         guard request.count >= Data(expectedOpcode.rawValue).count + opcodeIndex else {
             return false
         }
