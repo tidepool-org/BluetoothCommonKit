@@ -103,7 +103,7 @@ public class DTControlPointDataHandler: ControlPoint, E2EProtection {
             return (.failure(.invalidCRC), nil)
         }
 
-        var index = e2eDelegate?.isE2EProtectionSupported ?? false ? 2 : 0
+        var index = opcodeIndex
 
         guard let opcode = DTControlPointOpcode(rawValue: response[response.startIndex.advanced(by: index)...].to(DTControlPointOpcode.RawValue.self)) else {
             log.error("Response opcode not known. Complete response: %{public}@", response.hexadecimalString)
@@ -149,7 +149,8 @@ public class DTControlPointDataHandler: ControlPoint, E2EProtection {
             if isSpecificResponse(expectedOpcode: opcode, response: response) {
                 switch opcode {
                 case .responseCode:
-                    if let requestOpcode = DTControlPointOpcode(rawValue: response[response.startIndex.advanced(by: 3)...].to(DTControlPointOpcode.RawValue.self)) {
+                    
+                    if let requestOpcode = DTControlPointOpcode(rawValue: response[response.startIndex.advanced(by: opcodeIndex+1)...].to(DTControlPointOpcode.RawValue.self)) {
                         return  requestOpcode.procedureID
                     }
                 default:
@@ -165,9 +166,12 @@ public class DTControlPointDataHandler: ControlPoint, E2EProtection {
         log.error("Device Time Control Point response does not have a procedure ID (raw response: %{public}@)", response.toHexString())
         return nil
     }
+    
+    var opcodeIndex: Int {
+        e2eDelegate?.isE2EProtectionSupported ?? false ? 2 : 0 // skip CRC
+    }
 
     public func procedureIDForRequest(_ request: Data) -> ProcedureID {
-        let opcodeIndex = e2eDelegate?.isE2EProtectionSupported == true ? 2 : 0 // skip CRC
         guard let procedureID = DTControlPointOpcode(rawValue: request[request.startIndex.advanced(by: opcodeIndex)...].to(DTControlPointOpcode.RawValue.self))?.procedureID else {
             fatalError("Opcode does not have a procedure ID \(request.toHexString())")
         }
@@ -175,7 +179,7 @@ public class DTControlPointDataHandler: ControlPoint, E2EProtection {
     }
 
     func isSpecificResponse(expectedOpcode: DTControlPointOpcode, response: Data) -> Bool {
-        guard let opcode = DTControlPointOpcode(rawValue: response[response.startIndex.advanced(by: 2)...].to(DTControlPointOpcode.RawValue.self)),
+        guard let opcode = DTControlPointOpcode(rawValue: response[response.startIndex.advanced(by: opcodeIndex)...].to(DTControlPointOpcode.RawValue.self)),
               opcode == expectedOpcode else
         {
             return false
@@ -184,7 +188,6 @@ public class DTControlPointDataHandler: ControlPoint, E2EProtection {
     }
 
     public func isExpectedRequest<O: RawRepresentable>(_ request: Data, expectedOpcode: O) -> Bool where O.RawValue: FixedWidthInteger {
-        let opcodeIndex = e2eDelegate?.isE2EProtectionSupported ?? false ? 2 : 0
         guard request.count >= Data(expectedOpcode.rawValue).count + opcodeIndex else {
             return false
         }
