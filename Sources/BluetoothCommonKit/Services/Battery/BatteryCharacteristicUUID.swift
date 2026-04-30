@@ -10,14 +10,28 @@ import CoreBluetooth
 
 public enum BatteryCharacteristicUUID: String, CBUUIDDetails {
     case service = "180f"
-    
+
     // Read, Notify
-    // Notify is currently not supported
     case batteryLevel = "2a19"
 
-    public var name: String { "battery.level" }
+    // Read, Notify
+    case batteryLevelStatus = "2bed"
 
-    public var properties: [CBUUIDProperties] { [.read, .notify] }
+    public var name: String {
+        switch self {
+        case .service:            return "battery"
+        case .batteryLevel:       return "battery.level"
+        case .batteryLevelStatus: return "battery.levelStatus"
+        }
+    }
+
+    public var properties: [CBUUIDProperties] {
+        switch self {
+        case .service:            return []
+        case .batteryLevel:       return [.read, .notify]
+        case .batteryLevelStatus: return [.read, .notify]
+        }
+    }
 
     public func toPercent(_ data: Data) -> Int {
         return Int(data[data.startIndex...].to(UInt8.self))
@@ -39,17 +53,37 @@ public extension PeripheralManager {
         guard let characteristic = peripheral?.getBatteryCharacteristicWithUUID(.batteryLevel) else {
             throw PeripheralManagerError.unknownCharacteristic
         }
-        
+
         do {
             guard let characteristicData = try readValue(for: characteristic, timeout: timeout) else {
                 throw PeripheralManagerError.timeout
             }
-            
+
             guard characteristicData.count == 1 else {
                 throw PeripheralManagerError.invalidResponse(characteristicData)
             }
-            
+
             return BatteryCharacteristicUUID.batteryLevel.toPercent(characteristicData)
+        } catch let error as PeripheralManagerError {
+            throw error
+        }
+    }
+
+    func readBatteryLevelStatus(timeout: TimeInterval) throws -> BatteryLevelStatus {
+        guard let characteristic = peripheral?.getBatteryCharacteristicWithUUID(.batteryLevelStatus) else {
+            throw PeripheralManagerError.unknownCharacteristic
+        }
+
+        do {
+            guard let characteristicData = try readValue(for: characteristic, timeout: timeout) else {
+                throw PeripheralManagerError.timeout
+            }
+
+            guard let status = BatteryLevelStatus(data: characteristicData) else {
+                throw PeripheralManagerError.invalidResponse(characteristicData)
+            }
+
+            return status
         } catch let error as PeripheralManagerError {
             throw error
         }
