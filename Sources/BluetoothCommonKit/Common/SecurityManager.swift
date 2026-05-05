@@ -39,7 +39,9 @@ public class SecurityManager {
     private var counterpartPublicKey: SecKey?
     
     private var lockedConfiguration: Locked<Configuration>
-    
+
+    private var isFirstNonce: Bool = true
+
     public var configuration: Configuration {
         get {
             return lockedConfiguration.value
@@ -63,10 +65,12 @@ public class SecurityManager {
     public convenience init(sequenceNumber: UInt64 = 0) {
         self.init(configuration: Configuration())
         self.configuration.sequenceNumber = sequenceNumber
+        self.isFirstNonce = true
     }
-    
+
     public init(configuration: Configuration) {
         self.lockedConfiguration = Locked(configuration)
+        self.isFirstNonce = false
         if !configuration.hasOOBRandomNumber && applicationSecurityEstablished {
             // the stored key is invalid and needs to be deleted
             deleteStoredKey()
@@ -99,6 +103,7 @@ public class SecurityManager {
         delegate?.sharedKeyData = nil
         // sequence number is nonce for key
         configuration.resetSequenceNumber()
+        isFirstNonce = true
     }
     
     func generateNewNonceFixed() -> Data {
@@ -391,9 +396,20 @@ extension SecurityManager {
 extension SecurityManager {
     
     func nextIV() -> Data {
-        configuration.sequenceNumber += 1
-        var iv = configuration.generatedIVFixedField ?? configuration.receivedIVFixedField // fall back to the received fixed field when the generated fixed field is not used
-        iv.appendBigEndian(configuration.sequenceNumber)
+        switch configuration.nonceType {
+        case .sequenceNumberEvenOdd:
+            if isFirstNonce {
+                isFirstNonce = false
+                configuration.sequenceNumber = configuration.isClient ? 1 : 0
+            } else {
+                configuration.sequenceNumber += 2
+            }
+        case .sequenceNumberDifferentFixedParts, .profileDefinedParameter:
+            configuration.sequenceNumber += 1
+        }
+        var iv = configuration.generatedIVFixedField ?? configuration.receivedIVFixedField
+        let sequenceNumberBigEndian = Data(bigEndian: configuration.sequenceNumber)
+        iv.append(sequenceNumberBigEndian.suffix(configuration.nonceSizeOctetsVariable))
         return iv
     }
     
@@ -417,8 +433,9 @@ extension SecurityManager {
             configuration.securityControls.forEach { control in
                 switch control {
                 case .nonce:
-                    // only the sequence number is transmitted
-                    protectedRequest.append(configuration.sequenceNumber)
+                    // only the sequence number is transmitted in little endian
+                    let sequenceNumberLittleEndian = Data(configuration.sequenceNumber)
+                    protectedRequest.append(sequenceNumberLittleEndian.prefix(configuration.nonceSizeOctetsVariable))
                 case .mac:
                     // BT transmits in little endian byte order
                     protectedRequest.append(Data(encryptedContent.mac.reversed()))
@@ -596,6 +613,7 @@ extension SecurityManager {
             case certificateDeviceIdentifier
             case ecdhKeyID
             case ellipticCurve
+            case isClient
             case keyDerivationFunctionConfiguration
             case macSize
             case nonceSizeOctetsVariable
@@ -617,6 +635,8 @@ extension SecurityManager {
 
         public var algorithmType: KeyType = .aesGCM
 
+        public var isClient: Bool = true
+
         var ellipticCurve: EllipticCurve = .p256
         
         var keyDerivationFunctionConfiguration: KeyDerivationFunctionConfiguration? = nil
@@ -625,7 +645,7 @@ extension SecurityManager {
         
         public var macSize = 8
         
-        var nonceType: NonceType = .sequenceNumberEvenOdd
+        var nonceType: NonceType = .sequenceNumberDifferentFixedParts
         
         public var nonceSizeOctetsVariable = 8
         
@@ -696,6 +716,9 @@ extension SecurityManager {
             {
                 self.algorithmType = algorithmType
             }
+            if let isClient = rawValue[SecurityManagerConfigurationKey.isClient.rawValue] as? Bool {
+                self.isClient = isClient
+            }
             self.securityControls = securityControls
             self.macSize = macSize
             self.nonceSizeOctetsVariable = nonceSizeOctetsVariable
@@ -740,6 +763,7 @@ extension SecurityManager {
             raw[SecurityManagerConfigurationKey.ecdhKeyID.rawValue] = ecdhKeyID
             raw[SecurityManagerConfigurationKey.algorithmKeyID.rawValue] = algorithmKeyID
             raw[SecurityManagerConfigurationKey.algorithmType.rawValue] = algorithmType.rawValue
+            raw[SecurityManagerConfigurationKey.isClient.rawValue] = isClient
             raw[SecurityManagerConfigurationKey.ellipticCurve.rawValue] = ellipticCurve.rawValue
             let rawSecurityControls = try! PropertyListEncoder().encode(securityControls)
             raw[SecurityManagerConfigurationKey.securityControls.rawValue] = rawSecurityControls

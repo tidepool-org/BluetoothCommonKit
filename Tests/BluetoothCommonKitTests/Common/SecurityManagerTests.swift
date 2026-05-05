@@ -180,6 +180,237 @@ class SecurityManagerTests: XCTestCase {
         XCTAssertNotEqual(expectedMACLittleEndian, Data(mac))
     }
     
+    func testCCMEncryptWithNISTTestVectorExample1() {
+        // NIST SP 800-38C, Appendix B.1
+        //
+        // [Keylen = 128]
+        // [Noncelen = 56 (7 bytes)]
+        // [Taglen = 32 (4 bytes)]
+        // [AADlen = 64 (8 bytes)]
+        // [Payloadlen = 32 (4 bytes)]
+        //
+        // Key = 40414243 44454647 48494A4B 4C4D4E4F
+        // Nonce = 10111213 141516
+        // AAD = 00010203 04050607
+        // Payload = 20212223
+        // CT = 7162015B 4DAC255D
+
+        let keyData = Data([0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F])
+        let nonce = Data([0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16])
+        let aad = Data([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07])
+        let plaintext = Data([0x20, 0x21, 0x22, 0x23])
+        let expectedCiphertext = Data([0x71, 0x62, 0x01, 0x5B])
+        let expectedTag = Data([0x4D, 0xAC, 0x25, 0x5D])
+
+        securityManager.configuration.algorithmType = .aesCCM
+        securityManager.configuration.macSize = 4
+
+        let result = securityManager.encrypt(plaintext: plaintext, associateData: aad, keyData: keyData, nonceData: nonce)
+        switch result {
+        case .success(let encryptedContent):
+            XCTAssertEqual(encryptedContent.ciphertext, expectedCiphertext)
+            XCTAssertEqual(encryptedContent.mac, expectedTag)
+        case .failure(_):
+            XCTAssert(false)
+        }
+    }
+
+    func testCCMDecryptWithNISTTestVectorExample1() {
+        // NIST SP 800-38C, Appendix B.1 (decrypt direction)
+        let keyData = Data([0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F])
+        let nonce = Data([0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16])
+        let aad = Data([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07])
+        let ciphertext = Data([0x71, 0x62, 0x01, 0x5B])
+        let tag = Data([0x4D, 0xAC, 0x25, 0x5D])
+        let expectedPlaintext = Data([0x20, 0x21, 0x22, 0x23])
+
+        securityManager.configuration.algorithmType = .aesCCM
+        securityManager.configuration.macSize = 4
+
+        let result = securityManager.decrypt(ciphertext: ciphertext, associateData: aad, keyData: keyData, nonceData: nonce, mac: tag)
+        switch result {
+        case .success(let decryptedData):
+            XCTAssertEqual(decryptedData, expectedPlaintext)
+        case .failure(_):
+            XCTAssert(false)
+        }
+    }
+
+    func testCCMEncryptWithNISTTestVectorExample2() {
+        // NIST SP 800-38C, Appendix B.2
+        //
+        // [Keylen = 128]
+        // [Noncelen = 64 (8 bytes)]
+        // [Taglen = 48 (6 bytes)]
+        // [AADlen = 128 (16 bytes)]
+        // [Payloadlen = 128 (16 bytes)]
+        //
+        // Key = 40414243 44454647 48494A4B 4C4D4E4F
+        // Nonce = 10111213 14151617
+        // AAD = 00010203 04050607 08090A0B 0C0D0E0F
+        // Payload = 20212223 24252627 28292A2B 2C2D2E2F
+        // CT = D2A1F0E0 51EA5F62 081A7792 073D593D 1FC64FBF ACCD
+
+        let keyData = Data([0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F])
+        let nonce = Data([0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17])
+        let aad = Data([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F])
+        let plaintext = Data([0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F])
+        let expectedCiphertext = Data([0xD2, 0xA1, 0xF0, 0xE0, 0x51, 0xEA, 0x5F, 0x62, 0x08, 0x1A, 0x77, 0x92, 0x07, 0x3D, 0x59, 0x3D])
+        let expectedTag = Data([0x1F, 0xC6, 0x4F, 0xBF, 0xAC, 0xCD])
+
+        securityManager.configuration.algorithmType = .aesCCM
+        securityManager.configuration.macSize = 6
+
+        let result = securityManager.encrypt(plaintext: plaintext, associateData: aad, keyData: keyData, nonceData: nonce)
+        switch result {
+        case .success(let encryptedContent):
+            XCTAssertEqual(encryptedContent.ciphertext, expectedCiphertext)
+            XCTAssertEqual(encryptedContent.mac, expectedTag)
+        case .failure(_):
+            XCTAssert(false)
+        }
+    }
+
+    func testCCMDecryptWithNISTTestVectorExample2() {
+        // NIST SP 800-38C, Appendix B.2 (decrypt direction)
+        let keyData = Data([0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F])
+        let nonce = Data([0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17])
+        let aad = Data([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F])
+        let ciphertext = Data([0xD2, 0xA1, 0xF0, 0xE0, 0x51, 0xEA, 0x5F, 0x62, 0x08, 0x1A, 0x77, 0x92, 0x07, 0x3D, 0x59, 0x3D])
+        let tag = Data([0x1F, 0xC6, 0x4F, 0xBF, 0xAC, 0xCD])
+        let expectedPlaintext = Data([0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F])
+
+        securityManager.configuration.algorithmType = .aesCCM
+        securityManager.configuration.macSize = 6
+
+        let result = securityManager.decrypt(ciphertext: ciphertext, associateData: aad, keyData: keyData, nonceData: nonce, mac: tag)
+        switch result {
+        case .success(let decryptedData):
+            XCTAssertEqual(decryptedData, expectedPlaintext)
+        case .failure(_):
+            XCTAssert(false)
+        }
+    }
+
+    func testCCMEncryptWithNISTTestVectorExample3() {
+        // NIST SP 800-38C, Appendix B.3
+        //
+        // [Keylen = 128]
+        // [Noncelen = 96 (12 bytes)]
+        // [Taglen = 64 (8 bytes)]
+        // [AADlen = 160 (20 bytes)]
+        // [Payloadlen = 192 (24 bytes)]
+        //
+        // Key = 40414243 44454647 48494A4B 4C4D4E4F
+        // Nonce = 10111213 14151617 18191A1B
+        // AAD = 00010203 04050607 08090A0B 0C0D0E0F 10111213
+        // Payload = 20212223 24252627 28292A2B 2C2D2E2F 30313233 34353637
+        // CT = E3B201A9 F5B71A7A 9B1CEAEC CD97E70B 6176AAD9 A4428AA5 484392FB C1B09951
+
+        let keyData = Data([0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F])
+        let nonce = Data([0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B])
+        let aad = Data([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13])
+        let plaintext = Data([0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37])
+        let expectedCiphertext = Data([0xE3, 0xB2, 0x01, 0xA9, 0xF5, 0xB7, 0x1A, 0x7A, 0x9B, 0x1C, 0xEA, 0xEC, 0xCD, 0x97, 0xE7, 0x0B, 0x61, 0x76, 0xAA, 0xD9, 0xA4, 0x42, 0x8A, 0xA5])
+        let expectedTag = Data([0x48, 0x43, 0x92, 0xFB, 0xC1, 0xB0, 0x99, 0x51])
+
+        securityManager.configuration.algorithmType = .aesCCM
+        securityManager.configuration.macSize = 8
+
+        let result = securityManager.encrypt(plaintext: plaintext, associateData: aad, keyData: keyData, nonceData: nonce)
+        switch result {
+        case .success(let encryptedContent):
+            XCTAssertEqual(encryptedContent.ciphertext, expectedCiphertext)
+            XCTAssertEqual(encryptedContent.mac, expectedTag)
+        case .failure(_):
+            XCTAssert(false)
+        }
+    }
+
+    func testCCMDecryptWithNISTTestVectorExample3() {
+        // NIST SP 800-38C, Appendix B.3 (decrypt direction)
+        let keyData = Data([0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F])
+        let nonce = Data([0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B])
+        let aad = Data([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13])
+        let ciphertext = Data([0xE3, 0xB2, 0x01, 0xA9, 0xF5, 0xB7, 0x1A, 0x7A, 0x9B, 0x1C, 0xEA, 0xEC, 0xCD, 0x97, 0xE7, 0x0B, 0x61, 0x76, 0xAA, 0xD9, 0xA4, 0x42, 0x8A, 0xA5])
+        let tag = Data([0x48, 0x43, 0x92, 0xFB, 0xC1, 0xB0, 0x99, 0x51])
+        let expectedPlaintext = Data([0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37])
+
+        securityManager.configuration.algorithmType = .aesCCM
+        securityManager.configuration.macSize = 8
+
+        let result = securityManager.decrypt(ciphertext: ciphertext, associateData: aad, keyData: keyData, nonceData: nonce, mac: tag)
+        switch result {
+        case .success(let decryptedData):
+            XCTAssertEqual(decryptedData, expectedPlaintext)
+        case .failure(_):
+            XCTAssert(false)
+        }
+    }
+
+    func testCCMDecryptWithInvalidTag() {
+        // NIST SP 800-38C, Appendix B.1 with corrupted tag
+        let keyData = Data([0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F])
+        let nonce = Data([0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16])
+        let aad = Data([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07])
+        let ciphertext = Data([0x71, 0x62, 0x01, 0x5B])
+        let invalidTag = Data([0xFF, 0xFF, 0xFF, 0xFF])
+
+        securityManager.configuration.algorithmType = .aesCCM
+        securityManager.configuration.macSize = 4
+
+        let result = securityManager.decrypt(ciphertext: ciphertext, associateData: aad, keyData: keyData, nonceData: nonce, mac: invalidTag)
+        switch result {
+        case .success(_):
+            XCTAssert(false)
+        case .failure(let error):
+            XCTAssertEqual(error, .decryptionFailed)
+        }
+    }
+
+    func testCCMProtectAndDecryptRoundTrip() {
+        let macSize = 8
+        let nonceSizeOctetsVariable = 8
+        let ivFixedField: Data = Data(UInt32(12345678))
+        let keyData = Data(hexadecimalString: "7fddb57453c241d03efbed3ac44e371c")!
+        let securityConfigurationID: UInt16 = 1
+        sharedKeyData = keyData
+        securityManager.configuration.algorithmType = .aesCCM
+        securityManager.configuration.macSize = macSize
+        securityManager.configuration.nonceSizeOctetsVariable = nonceSizeOctetsVariable
+        securityManager.configuration.receivedIVFixedField = ivFixedField
+        securityManager.configuration.generatedIVFixedField = ivFixedField
+        securityManager.configuration.securityControls = [SecurityControlType.nonce, SecurityControlType.mac, SecurityControlType.authenticatedEncryptedATTPacketWithAssociatedData]
+        securityManager.configuration.securityConfigurationID = securityConfigurationID
+
+        let request = Data([0x01, 0x02, 0x03, 0x04, 0x05, 0x06])
+        let result = securityManager.protectRequest(request)
+        switch result {
+        case .success(let protectedRequest):
+            let decryptResult = securityManager.decryptSecurePayload(protectedRequest)
+            switch decryptResult {
+            case .success(let decryptedData):
+                XCTAssertEqual(decryptedData, request)
+            case .failure(_):
+                XCTAssert(false)
+            }
+        case .failure(_):
+            XCTAssert(false)
+        }
+    }
+
+    func testSecurityManagerErrorUnsupportedAlgorithm() {
+        securityManager.configuration.algorithmType = .aesCMAC
+
+        let result = securityManager.encrypt(plaintext: Data([0x01]), associateData: Data(), keyData: Data(count: 16), nonceData: Data(count: 12))
+        switch result {
+        case .success(_):
+            XCTAssert(false)
+        case .failure(let error):
+            XCTAssertEqual(error, .unsupportedAlgorithm)
+        }
+    }
+
     func testInitialization() {
         let securityManager = SecurityManager()
         securityManager.generateKeyPair()
@@ -526,12 +757,138 @@ class SecurityManagerTests: XCTestCase {
         let sequenceNumber: UInt64 = 1234567890
         var expectedNextIV = ivFixedField
         expectedNextIV.appendBigEndian(sequenceNumber+1)
-        
+
         let securityManager = SecurityManager(sequenceNumber: sequenceNumber)
         securityManager.configuration.receivedIVFixedField = ivFixedField
         securityManager.configuration.generatedIVFixedField = ivFixedField
-        
+
         XCTAssertEqual(securityManager.nextIV(), expectedNextIV)
+    }
+
+    func testNextIVEvenOddClient() {
+        let ivFixedField = Data(UInt32(0xcafeaffe))
+        let securityManager = SecurityManager()
+        securityManager.configuration.receivedIVFixedField = ivFixedField
+        securityManager.configuration.generatedIVFixedField = ivFixedField
+        securityManager.configuration.nonceType = .sequenceNumberEvenOdd
+        securityManager.configuration.isClient = true
+
+        // Client: first nonce should be 1, then 3, 5
+        let iv1 = securityManager.nextIV()
+        var expected1 = ivFixedField
+        expected1.appendBigEndian(UInt64(1))
+        XCTAssertEqual(iv1, expected1)
+
+        let iv2 = securityManager.nextIV()
+        var expected2 = ivFixedField
+        expected2.appendBigEndian(UInt64(3))
+        XCTAssertEqual(iv2, expected2)
+
+        let iv3 = securityManager.nextIV()
+        var expected3 = ivFixedField
+        expected3.appendBigEndian(UInt64(5))
+        XCTAssertEqual(iv3, expected3)
+    }
+
+    func testNextIVEvenOddServer() {
+        let ivFixedField = Data(UInt32(0xcafeaffe))
+        let securityManager = SecurityManager()
+        securityManager.configuration.receivedIVFixedField = ivFixedField
+        securityManager.configuration.generatedIVFixedField = ivFixedField
+        securityManager.configuration.nonceType = .sequenceNumberEvenOdd
+        securityManager.configuration.isClient = false
+
+        // Server: first nonce should be 0, then 2, 4
+        let iv1 = securityManager.nextIV()
+        var expected1 = ivFixedField
+        expected1.appendBigEndian(UInt64(0))
+        XCTAssertEqual(iv1, expected1)
+
+        let iv2 = securityManager.nextIV()
+        var expected2 = ivFixedField
+        expected2.appendBigEndian(UInt64(2))
+        XCTAssertEqual(iv2, expected2)
+
+        let iv3 = securityManager.nextIV()
+        var expected3 = ivFixedField
+        expected3.appendBigEndian(UInt64(4))
+        XCTAssertEqual(iv3, expected3)
+    }
+
+    func testNextIVDifferentFixedParts() {
+        let ivFixedField = Data(UInt32(0xcafeaffe))
+        let securityManager = SecurityManager()
+        securityManager.configuration.receivedIVFixedField = ivFixedField
+        securityManager.configuration.generatedIVFixedField = ivFixedField
+        securityManager.configuration.nonceType = .sequenceNumberDifferentFixedParts
+
+        // DifferentFixedParts: steps by 1, starting from 1
+        let iv1 = securityManager.nextIV()
+        var expected1 = ivFixedField
+        expected1.appendBigEndian(UInt64(1))
+        XCTAssertEqual(iv1, expected1)
+
+        let iv2 = securityManager.nextIV()
+        var expected2 = ivFixedField
+        expected2.appendBigEndian(UInt64(2))
+        XCTAssertEqual(iv2, expected2)
+
+        let iv3 = securityManager.nextIV()
+        var expected3 = ivFixedField
+        expected3.appendBigEndian(UInt64(3))
+        XCTAssertEqual(iv3, expected3)
+    }
+
+    func testNextIVWithNonDefaultVariableNonceSize() {
+        let ivFixedField: Data = Data(UInt32(12345678))
+        let sequenceNumber: UInt64 = 5
+        let nonceSizeOctetsVariable = 5
+
+        // Expected: fixed field (4 bytes) + last 5 bytes of sequence number in big endian
+        let sequenceNumberBigEndian = Data(bigEndian: sequenceNumber + 1)
+        var expectedNextIV = ivFixedField
+        expectedNextIV.append(sequenceNumberBigEndian.suffix(nonceSizeOctetsVariable))
+        XCTAssertEqual(expectedNextIV.count, 9)
+
+        let securityManager = SecurityManager(sequenceNumber: sequenceNumber)
+        securityManager.configuration.receivedIVFixedField = ivFixedField
+        securityManager.configuration.generatedIVFixedField = ivFixedField
+        securityManager.configuration.nonceSizeOctetsVariable = nonceSizeOctetsVariable
+
+        XCTAssertEqual(securityManager.nextIV(), expectedNextIV)
+    }
+
+    func testCCMProtectAndDecryptRoundTripWithNonDefaultVariableNonceSize() {
+        let macSize = 8
+        let nonceSizeOctetsVariable = 5
+        let ivFixedField = Data([0xCA, 0xFE, 0xAF, 0xFE])
+        let keyData = Data(hexadecimalString: "7fddb57453c241d03efbed3ac44e371c")!
+        let securityConfigurationID: UInt16 = 1
+        sharedKeyData = keyData
+        securityManager.configuration.algorithmType = .aesCCM
+        securityManager.configuration.macSize = macSize
+        securityManager.configuration.nonceSizeOctetsVariable = nonceSizeOctetsVariable
+        securityManager.configuration.receivedIVFixedField = ivFixedField
+        securityManager.configuration.generatedIVFixedField = ivFixedField
+        securityManager.configuration.securityControls = [SecurityControlType.nonce, SecurityControlType.mac, SecurityControlType.authenticatedEncryptedATTPacketWithAssociatedData]
+        securityManager.configuration.securityConfigurationID = securityConfigurationID
+
+        let request = Data([0x01, 0x02, 0x03, 0x04, 0x05, 0x06])
+        let result = securityManager.protectRequest(request)
+        switch result {
+        case .success(let protectedRequest):
+            // Verify the nonce on the wire is nonceSizeOctetsVariable bytes (after securityConfigID)
+            XCTAssertEqual(protectedRequest.count, 2 + nonceSizeOctetsVariable + macSize + request.count)
+            let decryptResult = securityManager.decryptSecurePayload(protectedRequest)
+            switch decryptResult {
+            case .success(let decryptedData):
+                XCTAssertEqual(decryptedData, request)
+            case .failure(_):
+                XCTAssert(false)
+            }
+        case .failure(_):
+            XCTAssert(false)
+        }
     }
     
     func testKeySizing() {
