@@ -445,16 +445,46 @@ extension SecurityManager {
     }
     
     func encrypt(plaintext: Data, associateData: Data = Data(), keyData: Data, nonceData: Data) -> Result<EncryptedContent, SecurityManagerError> {
+        switch configuration.algorithmType {
+        case .aesGCM:
+            return encryptGCM(plaintext: plaintext, associateData: associateData, keyData: keyData, nonceData: nonceData)
+        case .aesCCM:
+            return encryptCCM(plaintext: plaintext, associateData: associateData, keyData: keyData, nonceData: nonceData)
+        default:
+            return .failure(.unsupportedAlgorithm)
+        }
+    }
+
+    private func encryptGCM(plaintext: Data, associateData: Data, keyData: Data, nonceData: Data) -> Result<EncryptedContent, SecurityManagerError> {
         do {
             let key = SymmetricKey(data: keyData)
             let nonce = try AES.GCM.Nonce(data: nonceData)
             let sealedContent = try AES.GCM.seal(plaintext, using: key, nonce: nonce, authenticating: associateData)
-            
-            // reduce mac to length matching that in the key descriptor
+
             let reducedMac = Data(sealedContent.tag).subdata(in: 0..<configuration.macSize)
             return .success(EncryptedContent(ciphertext: sealedContent.ciphertext, mac: reducedMac, nonceData: nonceData))
         } catch let error {
-            log.error("Error encrypting %{public}@ plaintext: %{public}@ nonce: %{public}@", String(describing: error), plaintext.hexadecimalString, nonceData.hexadecimalString)
+            log.error("Error encrypting GCM %{public}@ plaintext: %{public}@ nonce: %{public}@", String(describing: error), plaintext.hexadecimalString, nonceData.hexadecimalString)
+            return .failure(.encryptionFailed)
+        }
+    }
+
+    private func encryptCCM(plaintext: Data, associateData: Data, keyData: Data, nonceData: Data) -> Result<EncryptedContent, SecurityManagerError> {
+        do {
+            let ccm = CCM(
+                iv: nonceData.byteArray,
+                tagLength: configuration.macSize,
+                messageLength: plaintext.count,
+                additionalAuthenticatedData: associateData.isEmpty ? nil : associateData.byteArray
+            )
+            let aes = try CryptoSwift.AES(key: keyData.byteArray, blockMode: ccm, padding: .noPadding)
+            let encrypted = try aes.encrypt(plaintext.byteArray)
+
+            let ciphertextBytes = Array(encrypted.prefix(encrypted.count - configuration.macSize))
+            let macBytes = Array(encrypted.suffix(configuration.macSize))
+            return .success(EncryptedContent(ciphertext: Data(ciphertextBytes), mac: Data(macBytes), nonceData: nonceData))
+        } catch let error {
+            log.error("Error encrypting CCM %{public}@ plaintext: %{public}@ nonce: %{public}@", String(describing: error), plaintext.hexadecimalString, nonceData.hexadecimalString)
             return .failure(.encryptionFailed)
         }
     }
@@ -507,16 +537,45 @@ extension SecurityManager {
     }
     
     func decrypt(ciphertext: Data, associateData: Data = Data(), keyData: Data, nonceData: Data, mac: Data) -> Result<Data, SecurityManagerError> {
+        switch configuration.algorithmType {
+        case .aesGCM:
+            return decryptGCM(ciphertext: ciphertext, associateData: associateData, keyData: keyData, nonceData: nonceData, mac: mac)
+        case .aesCCM:
+            return decryptCCM(ciphertext: ciphertext, associateData: associateData, keyData: keyData, nonceData: nonceData, mac: mac)
+        default:
+            return .failure(.unsupportedAlgorithm)
+        }
+    }
+
+    private func decryptGCM(ciphertext: Data, associateData: Data, keyData: Data, nonceData: Data, mac: Data) -> Result<Data, SecurityManagerError> {
         do {
-            // In combined mode, the authentication tag is appended to the encrypted message. This is usually what you want.
             var ciphertextAndMac = ciphertext
             ciphertextAndMac.append(mac)
-            let gcm = GCM(iv: nonceData.byteArray, tagLength: 8, mode: .combined)
+            let gcm = GCM(iv: nonceData.byteArray, tagLength: mac.count, mode: .combined)
             let aes = try CryptoSwift.AES(key: keyData.byteArray, blockMode: gcm, padding: .noPadding)
             let plaintext = try Data(aes.decrypt(ciphertextAndMac.byteArray))
             return .success(plaintext)
         } catch let error {
-            log.error("Error decrypting %{public}@ ciphertext: %{public}@ nonce: %{public}@ mac: %{public}@", String(describing: error), ciphertext.hexadecimalString, nonceData.hexadecimalString,  mac.hexadecimalString)
+            log.error("Error decrypting GCM %{public}@ ciphertext: %{public}@ nonce: %{public}@ mac: %{public}@", String(describing: error), ciphertext.hexadecimalString, nonceData.hexadecimalString, mac.hexadecimalString)
+            return .failure(.decryptionFailed)
+        }
+    }
+
+    private func decryptCCM(ciphertext: Data, associateData: Data, keyData: Data, nonceData: Data, mac: Data) -> Result<Data, SecurityManagerError> {
+        do {
+            var ciphertextAndMac = ciphertext
+            ciphertextAndMac.append(mac)
+            let ccm = CCM(
+                iv: nonceData.byteArray,
+                tagLength: mac.count,
+                messageLength: ciphertext.count,
+                additionalAuthenticatedData: associateData.isEmpty ? nil : associateData.byteArray
+            )
+            let aes = try CryptoSwift.AES(key: keyData.byteArray, blockMode: ccm, padding: .noPadding)
+            let plaintext = try Data(aes.decrypt(ciphertextAndMac.byteArray))
+            return .success(plaintext)
+        } catch let error {
+            log.error("Error decrypting CCM %{public}@ ciphertext: %{public}@ nonce: %{public}@ mac: %{public}@", String(describing: error), ciphertext.hexadecimalString, nonceData.hexadecimalString, mac.hexadecimalString)
             return .failure(.decryptionFailed)
         }
     }
@@ -532,6 +591,7 @@ extension SecurityManager {
         
         private enum SecurityManagerConfigurationKey: String {
             case algorithmKeyID
+            case algorithmType
             case generatedIVFixedField
             case certificateDeviceIdentifier
             case ecdhKeyID
@@ -554,7 +614,9 @@ extension SecurityManager {
         public var ecdhKeyID: KeyID = 1
         
         public var algorithmKeyID: KeyID = 2
-        
+
+        public var algorithmType: KeyType = .aesGCM
+
         var ellipticCurve: EllipticCurve = .p256
         
         var keyDerivationFunctionConfiguration: KeyDerivationFunctionConfiguration? = nil
@@ -629,6 +691,11 @@ extension SecurityManager {
             self.oobRandomNumber = oobRandomNumber
             self.ecdhKeyID = ecdhKeyID
             self.algorithmKeyID = algorithmKeyID
+            if let rawAlgorithmType = rawValue[SecurityManagerConfigurationKey.algorithmType.rawValue] as? KeyType.RawValue,
+               let algorithmType = KeyType(rawValue: rawAlgorithmType)
+            {
+                self.algorithmType = algorithmType
+            }
             self.securityControls = securityControls
             self.macSize = macSize
             self.nonceSizeOctetsVariable = nonceSizeOctetsVariable
@@ -672,6 +739,7 @@ extension SecurityManager {
             raw[SecurityManagerConfigurationKey.oobRandomNumber.rawValue] = oobRandomNumber
             raw[SecurityManagerConfigurationKey.ecdhKeyID.rawValue] = ecdhKeyID
             raw[SecurityManagerConfigurationKey.algorithmKeyID.rawValue] = algorithmKeyID
+            raw[SecurityManagerConfigurationKey.algorithmType.rawValue] = algorithmType.rawValue
             raw[SecurityManagerConfigurationKey.ellipticCurve.rawValue] = ellipticCurve.rawValue
             let rawSecurityControls = try! PropertyListEncoder().encode(securityControls)
             raw[SecurityManagerConfigurationKey.securityControls.rawValue] = rawSecurityControls

@@ -82,6 +82,9 @@ struct KeyDescriptor: RequestHandler {
                     let keyID = response[response.startIndex.advanced(by: index)...].to(KeyID.self)
                     index += 2
                     securityManager.configuration.algorithmKeyID = recordValue
+                    if let recordType {
+                        securityManager.configuration.algorithmType = recordType
+                    }
 
                     _ = MessageType(rawValue: response[response.startIndex.advanced(by: index)...].to(UInt8.self))
                     index += 1
@@ -133,7 +136,7 @@ struct KeyDescriptor: RequestHandler {
     }
 }
 
-public enum KeyType: UInt8 {
+public enum KeyType: UInt8, Codable {
     case oobKey
     case ecdh
     case kdfKeyExchange
