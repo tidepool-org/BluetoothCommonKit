@@ -25,7 +25,7 @@ struct KeyExchangeECDH: RequestHandler {
 
     static func startKeyExchange(securityManager: SecurityManager) -> Data {
         var operand = Data(securityManager.configuration.ecdhKeyID)
-        operand.append(StartKeyExchangeConfirmationMethod.oobNumberStatic.rawValue)
+        operand.append(StartKeyExchangeConfirmationMethod.noMethod.rawValue)
         operand.append(StartKeyExchangeConfirmationAction.staticAction.rawValue)
         
         return KeyExchangeECDH.buildControlPointRequest(opcode: ACControlPointOpcode.startKeyExchange, operand: operand)

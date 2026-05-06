@@ -14,6 +14,7 @@ public enum SecurityManagerError: Error, Equatable {
     case incorrectSecurityConfiguration
     case missingKey
     case keyDerivationFailed
+    case unsupportedAlgorithm
 }
 
 extension SecurityManagerError: LocalizedError {
@@ -29,6 +30,8 @@ extension SecurityManagerError: LocalizedError {
             return LocalizedString("Missing key", comment: "error when the security key is missing")
         case .keyDerivationFailed:
             return LocalizedString("Key derivation failed", comment: "error when the key derivation failed")
+        case .unsupportedAlgorithm:
+            return LocalizedString("Unsupported algorithm", comment: "error when the algorithm type is not supported")
         }
     }
 }

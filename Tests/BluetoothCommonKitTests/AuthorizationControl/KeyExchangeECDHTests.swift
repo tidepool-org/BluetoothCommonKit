@@ -41,7 +41,7 @@ class KeyExchangeECDHTests: XCTestCase {
         let securityManager = SecurityManager()
         let keyID: KeyID = 1
         securityManager.configuration.ecdhKeyID = keyID
-        let confirmationMethod = StartKeyExchangeConfirmationMethod.oobNumberStatic
+        let confirmationMethod = StartKeyExchangeConfirmationMethod.noMethod
         let confirmationAction = StartKeyExchangeConfirmationAction.staticAction
         
         let request = KeyExchangeECDH.startKeyExchange(securityManager: securityManager)

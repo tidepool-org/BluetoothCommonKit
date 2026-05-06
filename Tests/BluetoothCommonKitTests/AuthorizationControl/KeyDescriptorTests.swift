@@ -25,7 +25,7 @@ class KeyDescriptorTests: XCTestCase {
     func testEllipticCurve() {
         XCTAssertEqual(EllipticCurve(rawValue: 0x00), EllipticCurve.p256)
         XCTAssertEqual(EllipticCurve(rawValue: 0x01), EllipticCurve.p384)
-        XCTAssertEqual(EllipticCurve(rawValue: 0x02), EllipticCurve.p512)
+        XCTAssertEqual(EllipticCurve(rawValue: 0x02), EllipticCurve.p521)
         XCTAssertEqual(EllipticCurve(rawValue: 0x03), EllipticCurve.curve25519)
         XCTAssertNil(EllipticCurve(rawValue: 0x07))
     }

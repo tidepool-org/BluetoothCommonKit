@@ -161,8 +161,8 @@ public class ACControlPointCharacteristic: WritableCharacteristic, SegmentationH
                     sendResponse(response)
                     break
                 }
-                response = Data(UInt8(1))
-                response = Data(keyID)
+                response.append(UInt8(1))
+                response.append(keyID)
                 sendResponse(response)
             case .startKeyExchange:
                 guard completeRequest.count == 5 else {
@@ -177,7 +177,7 @@ public class ACControlPointCharacteristic: WritableCharacteristic, SegmentationH
                 let confirmationAction = StartKeyExchangeConfirmationAction(rawValue: completeRequest[completeRequest.startIndex.advanced(by: index)...].to(StartKeyExchangeConfirmationAction.RawValue.self))
                 
                 guard keyID == delegate?.ecdhKeyID,
-                      confirmationMethod == .oobNumberStatic,
+                      (confirmationMethod == .oobNumberStatic || confirmationMethod == .noMethod),
                       confirmationAction == .staticAction
                 else {
                     respond(to: .startKeyExchange, with: .procedureNotApplicable)
@@ -768,15 +768,23 @@ extension ACControlPointDataHandler: RequestHandler {
     public func createGetPHDCertificateNonceRequest() -> Data {
         ACControlPointDataHandler.buildControlPointRequest(opcode: ACControlPointOpcode.getPHDCertificateNonce)
     }
+    
+    public func createInitiatePairingRequest() -> Data {
+        return ACControlPointDataHandler.buildControlPointRequest(opcode: ACControlPointOpcode.initiatePairing)
+    }
 
     public func createInvalidateKeyRequest() -> Data {
         let operand = Data(securityManager.configuration.ecdhKeyID)
         return ACControlPointDataHandler.buildControlPointRequest(opcode: ACControlPointOpcode.invalidateKey, operand: operand)
     }
     
+    public func createInvalidateAllEstablishedSecurityRequest() -> Data {
+        return ACControlPointDataHandler.buildControlPointRequest(opcode: ACControlPointOpcode.invalidateAllEstablishedSecurity)
+    }
+    
     public func createStartKeyExchangeRequest() -> Data {
         var operand = Data(securityManager.configuration.ecdhKeyID)
-        operand.append(StartKeyExchangeConfirmationMethod.oobNumberStatic.rawValue)
+        operand.append(StartKeyExchangeConfirmationMethod.noMethod.rawValue)
         operand.append(StartKeyExchangeConfirmationAction.staticAction.rawValue)
 
         return ACControlPointDataHandler.buildControlPointRequest(opcode: ACControlPointOpcode.startKeyExchange, operand: operand)
@@ -804,9 +812,17 @@ extension ACControlPointDataHandler: RequestHandler {
         appendToRequestQueue(request, completion: completion)
         return true
     }
+    
+    public func queueInitiatePairingRequest(completion: ProcedureResultCompletion? = nil) {
+        appendToRequestQueue(createInitiatePairingRequest(), completion: completion)
+    }
 
     public func queueInvalidateKeyRequest(completion: ProcedureResultCompletion? = nil) {
         appendToRequestQueue(createInvalidateKeyRequest(), completion: completion)
+    }
+    
+    public func queueInvalidateAllEstablishedSecurityRequest(completion: ProcedureResultCompletion? = nil) {
+        appendToRequestQueue(createInvalidateAllEstablishedSecurityRequest(), completion: completion)
     }
 
     public func queueKeyExchangeKDFRequest(completion: ProcedureResultCompletion? = nil) {
@@ -978,7 +994,7 @@ public enum ACControlPointOpcode: UInt8, CaseIterable {
         case .getKeyURI: return "getKeyURI"
         case .keyURIResponse: return "keyURIResponse"
         case .getACSFeature: return "getACSFeature"
-        case .acsFeatureResponse: return "keyExchangeECDH"
+        case .acsFeatureResponse: return "acsFeatureResponse"
         case .keyExchangeECDH: return "keyExchangeECDH"
         case .keyExchangeECDHResponse: return "keyExchangeECDHResponse"
         case .keyExchangeECDHConfirmationCode: return "keyExchangeECDHConfirmationCode"

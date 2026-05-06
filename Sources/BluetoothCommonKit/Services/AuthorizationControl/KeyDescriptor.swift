@@ -82,6 +82,9 @@ struct KeyDescriptor: RequestHandler {
                     let keyID = response[response.startIndex.advanced(by: index)...].to(KeyID.self)
                     index += 2
                     securityManager.configuration.algorithmKeyID = recordValue
+                    if let recordType {
+                        securityManager.configuration.algorithmType = recordType
+                    }
 
                     _ = MessageType(rawValue: response[response.startIndex.advanced(by: index)...].to(UInt8.self))
                     index += 1
@@ -133,7 +136,7 @@ struct KeyDescriptor: RequestHandler {
     }
 }
 
-public enum KeyType: UInt8 {
+public enum KeyType: UInt8, Codable {
     case oobKey
     case ecdh
     case kdfKeyExchange
@@ -147,7 +150,7 @@ public enum KeyType: UInt8 {
 public enum EllipticCurve: UInt8, Codable {
     case p256
     case p384
-    case p512
+    case p521
     case curve25519
     
     var keySizeInBits: Int {
@@ -156,8 +159,8 @@ public enum EllipticCurve: UInt8, Codable {
             return 256
         case .p384:
             return 384
-        case .p512:
-            return 512
+        case .p521:
+            return 521
         }
     }
 
@@ -167,8 +170,8 @@ public enum EllipticCurve: UInt8, Codable {
             return 69
         case .p384:
             return 101
-        case .p512:
-            return 133
+        case .p521:
+            return 137
         }
     }
 }
