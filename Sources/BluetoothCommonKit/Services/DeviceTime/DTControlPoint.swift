@@ -238,7 +238,7 @@ public class DTControlPointDataHandler: ControlPoint, E2EProtection {
     }
 }
 
-//MARK: - Write Insulin Delivery Control Point Request
+//MARK: - Write Device Time Control Point Request
 extension PeripheralManager {
     public func writeDeviceTimeControlPointRequest(_ request: Data, type: CBCharacteristicWriteType = .withResponse, timeout: TimeInterval) throws {
         guard let characteristic = peripheral?.getDeviceTimetCharacteristicWithUUID(.controlPoint) else {
