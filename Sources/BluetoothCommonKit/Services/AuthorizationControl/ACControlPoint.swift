@@ -514,7 +514,7 @@ public class ACControlPointDataHandler: SegmentationHandler, ControlPoint {
             let completion = completeProcedure(requestOpcode)
             switch responseCode {
             case .success:
-                if requestOpcode == .invalidateKey {
+                if requestOpcode == .invalidateKey || requestOpcode == .invalidateAllEstablishedSecurity {
                     securityManager.deleteStoredKey()
                 }
                 return (.success(nil), completion)

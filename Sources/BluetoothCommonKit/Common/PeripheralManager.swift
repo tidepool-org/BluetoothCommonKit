@@ -41,7 +41,7 @@ public class PeripheralManager: NSObject {
     }
 
     /// The dispatch queue used to serialize operations on the peripheral
-    let queue = DispatchQueue(label: "org.tidepool.InsulinDeliveryService.PeripheralManager.queue", qos: .unspecified)
+    let queue = DispatchQueue(label: "org.tidepool.BluetoothCommonKit.PeripheralManager.queue", qos: .unspecified)
 
     /// The condition used to signal command completion
     private let commandLock = NSCondition()

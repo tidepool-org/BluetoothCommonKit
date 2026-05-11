@@ -276,7 +276,7 @@ public class BluetoothManager: NSObject {
             centralManager.connect(peripheral)
         } else {
             let connectedPeripherals = centralManager.retrieveConnectedPeripherals(withServices: servicesToDiscover)
-            log.debug("connectedPeripherals with insulin delivery service %{public}@", connectedPeripherals)
+            log.debug("connectedPeripherals with services (%{public}@): %{public}@ ", servicesToDiscover, connectedPeripherals)
             for connectedPeripheral in connectedPeripherals {
                 guard delegate?.bluetoothManager(self, shouldConnectPeripheral: connectedPeripheral, advertisementData: nil) == true else {
                     log.debug("do not connect to peripheral %{public}@", connectedPeripheral)

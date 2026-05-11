@@ -30,7 +30,7 @@ final class DTFeaturesTests: XCTestCase {
         XCTAssertTrue(featureFlags.contains(.supportedRetrieveActiveTimeAdjustments))
     }
 
-    func testHandleInsulinDeliveryStatusData() {
+    func testHandleDeviceTimeFeatureData() {
         let featureFlags = DTFeatureFlag([.supportedE2ECRC, .supportedEpochYear2000])
         let data = Data(featureFlags.rawValue)
         let dataWithE2EProtection = data.appendingCRCPrefix()
@@ -44,7 +44,7 @@ final class DTFeaturesTests: XCTestCase {
         }
     }
 
-    func testHandleInsulinDeliveryStatusDataInvalidFormat() {
+    func testHandleDeviceTimeFeatureDataInvalidFormat() {
         let featureFlags = DTFeatureFlag([.supportedE2ECRC, .supportedEpochYear2000])
         let data = Data(featureFlags.rawValue)
         let result = DTFeaturesDataHandler.handleData(data)
@@ -56,7 +56,7 @@ final class DTFeaturesTests: XCTestCase {
         }
     }
 
-    func testHandleInsulinDeliveryStatusDataInvalidCRC() {
+    func testHandleDeviceTimeFeatureDataInvalidCRC() {
         let featureFlags = DTFeatureFlag([.supportedE2ECRC, .supportedEpochYear2000])
         var data = Data(UInt16(0))
         data.append(featureFlags.rawValue)
