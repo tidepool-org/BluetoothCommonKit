@@ -614,6 +614,8 @@ extension SecurityManager {
             case ecdhKeyID
             case ellipticCurve
             case isClient
+            case kdfKeyID
+            case kdfKeyDerivationFunction
             case keyDerivationFunctionConfiguration
             case macSize
             case nonceSizeOctetsVariable
@@ -633,13 +635,17 @@ extension SecurityManager {
         
         public var algorithmKeyID: KeyID = 2
 
+        public var kdfKeyID: KeyID = 0
+
+        public var kdfKeyDerivationFunction: KeyDerivationFunction?
+
         public var algorithmType: KeyType = .aesGCM
 
         public var isClient: Bool = true
 
         var ellipticCurve: EllipticCurve = .p256
         
-        var keyDerivationFunctionConfiguration: KeyDerivationFunctionConfiguration? = nil
+        public var keyDerivationFunctionConfiguration: KeyDerivationFunctionConfiguration? = nil
         
         var securityControls: [SecurityControlType] = [.nonce, .mac, .authenticatedEncryptedATTPacketWithAssociatedData]
         
@@ -649,7 +655,7 @@ extension SecurityManager {
         
         public var nonceSizeOctetsVariable = 8
         
-        var receivedIVFixedField: Data = Data(UInt32(0xcafeaffe))
+        public var receivedIVFixedField: Data = Data(UInt32(0xcafeaffe))
         
         public var generatedIVFixedField: Data?
         
@@ -675,12 +681,12 @@ extension SecurityManager {
             return generatedIVFixedField
         }
         
-        struct KeyDerivationFunctionConfiguration: Codable, Equatable {
-            let keyDerivationFunction: KeyDerivationFunction
-            var salt: Data
-            var info: Data
-            
-            init(keyDerivationFunction: KeyDerivationFunction, salt: Data? = nil, info: Data = Data()) {
+        public struct KeyDerivationFunctionConfiguration: Codable, Equatable {
+            public let keyDerivationFunction: KeyDerivationFunction
+            public var salt: Data
+            public var info: Data
+
+            public init(keyDerivationFunction: KeyDerivationFunction, salt: Data? = nil, info: Data = Data()) {
                 self.keyDerivationFunction = keyDerivationFunction
                 self.salt = salt ?? Data([UInt8](repeating: 0, count: keyDerivationFunction.hashLengthOctets))
                 self.info = info
@@ -711,6 +717,12 @@ extension SecurityManager {
             self.oobRandomNumber = oobRandomNumber
             self.ecdhKeyID = ecdhKeyID
             self.algorithmKeyID = algorithmKeyID
+            if let kdfKeyID = rawValue[SecurityManagerConfigurationKey.kdfKeyID.rawValue] as? KeyID {
+                self.kdfKeyID = kdfKeyID
+            }
+            if let rawKdfFunction = rawValue[SecurityManagerConfigurationKey.kdfKeyDerivationFunction.rawValue] as? KeyDerivationFunction.RawValue {
+                self.kdfKeyDerivationFunction = KeyDerivationFunction(rawValue: rawKdfFunction)
+            }
             if let rawAlgorithmType = rawValue[SecurityManagerConfigurationKey.algorithmType.rawValue] as? KeyType.RawValue,
                let algorithmType = KeyType(rawValue: rawAlgorithmType)
             {
@@ -762,6 +774,8 @@ extension SecurityManager {
             raw[SecurityManagerConfigurationKey.oobRandomNumber.rawValue] = oobRandomNumber
             raw[SecurityManagerConfigurationKey.ecdhKeyID.rawValue] = ecdhKeyID
             raw[SecurityManagerConfigurationKey.algorithmKeyID.rawValue] = algorithmKeyID
+            raw[SecurityManagerConfigurationKey.kdfKeyID.rawValue] = kdfKeyID
+            raw[SecurityManagerConfigurationKey.kdfKeyDerivationFunction.rawValue] = kdfKeyDerivationFunction?.rawValue
             raw[SecurityManagerConfigurationKey.algorithmType.rawValue] = algorithmType.rawValue
             raw[SecurityManagerConfigurationKey.isClient.rawValue] = isClient
             raw[SecurityManagerConfigurationKey.ellipticCurve.rawValue] = ellipticCurve.rawValue

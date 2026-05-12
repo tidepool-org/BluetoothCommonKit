@@ -477,7 +477,9 @@ public class ACControlPointDataHandler: SegmentationHandler, ControlPoint {
     let securityManager: SecurityManager
     
     var features: FeaturesFlag = []
-    
+
+    public var skipConfirmationCodeAfterKDF = false
+
     public init(securityManager: SecurityManager, maxRequestSize: Int) {
         self.securityManager = securityManager
         self.maxRequestSize = maxRequestSize
@@ -610,6 +612,10 @@ public class ACControlPointDataHandler: SegmentationHandler, ControlPoint {
             let result = KeyExchangeECDH.handleResponse(completeResponse, opcode: opcode, securityManager: self.securityManager)
             switch result {
             case .success:
+                if skipConfirmationCodeAfterKDF {
+                    skipConfirmationCodeAfterKDF = false
+                    return (.success(nil), completion)
+                }
                 guard didQueueECDHConfirmationCodeRequest() else { return (.failure(.deviceNotReady), completion) }
                 return (.success(nil), completion)
             default:

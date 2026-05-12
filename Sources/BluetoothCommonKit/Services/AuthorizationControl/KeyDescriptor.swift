@@ -120,12 +120,15 @@ struct KeyDescriptor: RequestHandler {
                     guard index + kdfRecordHeaderSize <= response.count else { return .failure(.invalidFormat) }
                     // key derivation key exchange parameters
 
+                    securityManager.configuration.kdfKeyID = recordValue
+
                     // key ID
                     _ = response[response.startIndex.advanced(by: index)...].to(KeyID.self)
                     index += 2
 
-                    _ = KeyDerivationFunction(rawValue: response[response.startIndex.advanced(by: index)...].to(KeyDerivationFunction.RawValue.self))
+                    let kdfFunction = KeyDerivationFunction(rawValue: response[response.startIndex.advanced(by: index)...].to(KeyDerivationFunction.RawValue.self))
                     index += 1
+                    securityManager.configuration.kdfKeyDerivationFunction = kdfFunction
                 default:
                     return .failure(.invalidFormat)
                 }
