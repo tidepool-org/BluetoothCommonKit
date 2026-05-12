@@ -614,8 +614,8 @@ extension SecurityManager {
             case ecdhKeyID
             case ellipticCurve
             case isClient
-            case kdfKeyID
-            case kdfKeyDerivationFunction
+            case sessionKeyID
+            case sessionKeyDerivationFunction
             case keyDerivationFunctionConfiguration
             case macSize
             case nonceSizeOctetsVariable
@@ -635,9 +635,9 @@ extension SecurityManager {
         
         public var algorithmKeyID: KeyID = 2
 
-        public var kdfKeyID: KeyID = 0
+        public var sessionKeyID: KeyID = 0
 
-        public var kdfKeyDerivationFunction: KeyDerivationFunction?
+        public var sessionKeyDerivationFunction: KeyDerivationFunction?
 
         public var algorithmType: KeyType = .aesGCM
 
@@ -717,11 +717,11 @@ extension SecurityManager {
             self.oobRandomNumber = oobRandomNumber
             self.ecdhKeyID = ecdhKeyID
             self.algorithmKeyID = algorithmKeyID
-            if let kdfKeyID = rawValue[SecurityManagerConfigurationKey.kdfKeyID.rawValue] as? KeyID {
-                self.kdfKeyID = kdfKeyID
+            if let sessionKeyID = rawValue[SecurityManagerConfigurationKey.sessionKeyID.rawValue] as? KeyID {
+                self.sessionKeyID = sessionKeyID
             }
-            if let rawKdfFunction = rawValue[SecurityManagerConfigurationKey.kdfKeyDerivationFunction.rawValue] as? KeyDerivationFunction.RawValue {
-                self.kdfKeyDerivationFunction = KeyDerivationFunction(rawValue: rawKdfFunction)
+            if let rawSessionKeyDerivationFunction = rawValue[SecurityManagerConfigurationKey.sessionKeyDerivationFunction.rawValue] as? KeyDerivationFunction.RawValue {
+                self.sessionKeyDerivationFunction = KeyDerivationFunction(rawValue: rawSessionKeyDerivationFunction)
             }
             if let rawAlgorithmType = rawValue[SecurityManagerConfigurationKey.algorithmType.rawValue] as? KeyType.RawValue,
                let algorithmType = KeyType(rawValue: rawAlgorithmType)
@@ -774,8 +774,8 @@ extension SecurityManager {
             raw[SecurityManagerConfigurationKey.oobRandomNumber.rawValue] = oobRandomNumber
             raw[SecurityManagerConfigurationKey.ecdhKeyID.rawValue] = ecdhKeyID
             raw[SecurityManagerConfigurationKey.algorithmKeyID.rawValue] = algorithmKeyID
-            raw[SecurityManagerConfigurationKey.kdfKeyID.rawValue] = kdfKeyID
-            raw[SecurityManagerConfigurationKey.kdfKeyDerivationFunction.rawValue] = kdfKeyDerivationFunction?.rawValue
+            raw[SecurityManagerConfigurationKey.sessionKeyID.rawValue] = sessionKeyID
+            raw[SecurityManagerConfigurationKey.sessionKeyDerivationFunction.rawValue] = sessionKeyDerivationFunction?.rawValue
             raw[SecurityManagerConfigurationKey.algorithmType.rawValue] = algorithmType.rawValue
             raw[SecurityManagerConfigurationKey.isClient.rawValue] = isClient
             raw[SecurityManagerConfigurationKey.ellipticCurve.rawValue] = ellipticCurve.rawValue
