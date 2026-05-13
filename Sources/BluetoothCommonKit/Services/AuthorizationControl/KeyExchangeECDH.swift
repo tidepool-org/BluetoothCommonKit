@@ -192,17 +192,23 @@ struct KeyExchangeECDH: RequestHandler {
             return .failure(.invalidFormat)
         }
         var index = 1 // skip the opcode
-        
+
         let keyID = response[response.startIndex.advanced(by: index)...].to(KeyID.self)
         index += 2
-        guard keyID == securityManager.configuration.ecdhKeyID else {
-            // this is a response not related to the ECDH key exchange procedure
+
+        let responseCode = KeyExchangeResponseCode(rawValue: response[response.startIndex.advanced(by: index)...].to(UInt8.self))
+        let isSuccessful = responseCode == KeyExchangeResponseCode.successful
+
+        if keyID == securityManager.configuration.ecdhKeyID {
+            // ECDH key exchange complete — triggers security establishment
+            securityManager.keyExchangeResults(isSuccessful)
+            return isSuccessful ? .success(nil) : .failure(.authenticationFailed)
+        } else if keyID == securityManager.configuration.sessionKeyID {
+            // KDF session key exchange complete — report result without re-triggering establishment
+            return isSuccessful ? .success(nil) : .failure(.authenticationFailed)
+        } else {
             return .failure(.invalidOperand)
         }
-        
-        let responseCode = KeyExchangeResponseCode(rawValue: response[response.startIndex.advanced(by: index)...].to(UInt8.self))
-        securityManager.keyExchangeResults(responseCode == KeyExchangeResponseCode.successful)
-        return responseCode == KeyExchangeResponseCode.successful ? .success(nil) : .failure(.authenticationFailed)
     }
 
     static func handleKDFResponse(_ response: Data, securityManager: SecurityManager) -> DeviceCommResult<Any?> {
