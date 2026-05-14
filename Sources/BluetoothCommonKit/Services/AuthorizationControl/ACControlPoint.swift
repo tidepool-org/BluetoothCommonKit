@@ -480,6 +480,8 @@ public class ACControlPointDataHandler: SegmentationHandler, ControlPoint {
 
     public var skipConfirmationCodeAfterKDF = false
 
+    public var skipECDHKeyExchange = false
+
     public init(securityManager: SecurityManager, maxRequestSize: Int) {
         self.securityManager = securityManager
         self.maxRequestSize = maxRequestSize
@@ -573,17 +575,20 @@ public class ACControlPointDataHandler: SegmentationHandler, ControlPoint {
             let result = KeyDescriptor.handleResponse(completeResponse, securityManager: self.securityManager)
             switch result {
             case .success:
-                queueSetClientFixedNonceRequest()
-                if features.contains(.keyFormatClientX509Supported) {
-                    // take the x509 path
-                    queueGetPHDCertificateNonce()
-                } else {
-                    // take the uncompressed key path
-                    securityManager.generateKeyPair()
-                    queueStartKeyExchangeRequest()
-                    queueECDHPublicKeyRequest()
-                    queueKeyExchangeKDFRequest()
+                if !skipECDHKeyExchange {
+                    queueSetClientFixedNonceRequest()
+                    if features.contains(.keyFormatClientX509Supported) {
+                        // take the x509 path
+                        queueGetPHDCertificateNonce()
+                    } else {
+                        // take the uncompressed key path
+                        securityManager.generateKeyPair()
+                        queueStartKeyExchangeRequest()
+                        queueECDHPublicKeyRequest()
+                        queueKeyExchangeKDFRequest()
+                    }
                 }
+                skipECDHKeyExchange = false
                 return (.success(nil), completion)
             default:
                 return (result, completion)
