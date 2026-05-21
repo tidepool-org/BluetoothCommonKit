@@ -302,7 +302,7 @@ public enum DTControlPointResponseCode: UInt8 {
     case deviceBusy = 7
 }
 
-enum TimeSource: UInt8 {
+public enum TimeSource: UInt8 {
     case unknown = 0
     case networkTimeProtocol = 1
     case gps = 2
@@ -312,7 +312,7 @@ enum TimeSource: UInt8 {
     case cellularNetwork = 6
 }
 
-enum TimeAccuracy: UInt8 {
+public enum TimeAccuracy: UInt8 {
     case unknown = 255
 }
 
@@ -325,20 +325,24 @@ public enum DSTOffset: UInt8 {
 }
 
 //MARK: - Option sets
-struct RejectionFlags: OptionSet, Hashable, CustomStringConvertible {
-    let rawValue: UInt16
+public struct RejectionFlags: OptionSet, Hashable, CustomStringConvertible, Sendable {
+    public let rawValue: UInt16
 
-    static let notRealistic  = RejectionFlags(rawValue: 1 << 0)
-    static let notAuthorized = RejectionFlags(rawValue: 1 << 1)
-    static let outOfRangeOperand = RejectionFlags(rawValue: 1 << 2)
-    static let notUTCAligned = RejectionFlags(rawValue: 1 << 3)
-    static let outOfRangeTimeAccuracy = RejectionFlags(rawValue: 1 << 4)
-    static let timeSourceLowQuality = RejectionFlags(rawValue: 1 << 5)
-    static let epochYearNotAligned = RejectionFlags(rawValue: 1 << 6)
-    static let lackOfPrecision = RejectionFlags(rawValue: 1 << 8)
-    static let baseTimeRejected = RejectionFlags(rawValue: 1 << 9)
-    static let timeZoneDSTRejected = RejectionFlags(rawValue: 1 << 10)
-    static let allZeros = RejectionFlags([])
+    public init(rawValue: UInt16) {
+        self.rawValue = rawValue
+    }
+
+    public static let notRealistic  = RejectionFlags(rawValue: 1 << 0)
+    public static let notAuthorized = RejectionFlags(rawValue: 1 << 1)
+    public static let outOfRangeOperand = RejectionFlags(rawValue: 1 << 2)
+    public static let notUTCAligned = RejectionFlags(rawValue: 1 << 3)
+    public static let outOfRangeTimeAccuracy = RejectionFlags(rawValue: 1 << 4)
+    public static let timeSourceLowQuality = RejectionFlags(rawValue: 1 << 5)
+    public static let epochYearNotAligned = RejectionFlags(rawValue: 1 << 6)
+    public static let lackOfPrecision = RejectionFlags(rawValue: 1 << 8)
+    public static let baseTimeRejected = RejectionFlags(rawValue: 1 << 9)
+    public static let timeZoneDSTRejected = RejectionFlags(rawValue: 1 << 10)
+    public static let allZeros = RejectionFlags([])
 
     static let debugDescriptions: [RejectionFlags:String] = {
         var descriptions = [RejectionFlags:String]()
@@ -367,27 +371,31 @@ struct RejectionFlags: OptionSet, Hashable, CustomStringConvertible {
     }
 }
 
-struct TimeUpdateFlags: OptionSet, Hashable, CustomStringConvertible {
-    let rawValue: UInt16
+public struct TimeUpdateFlags: OptionSet, Hashable, CustomStringConvertible, Sendable {
+    public let rawValue: UInt16
 
-    static let utcAligned  = TimeUpdateFlags(rawValue: 1 << 0)
-    static let qualifiedLocalTime = TimeUpdateFlags(rawValue: 1 << 1)
-    static let adjustmentReasonManual = TimeUpdateFlags(rawValue: 1 << 2)
-    static let adjustmenReasonExternal = TimeUpdateFlags(rawValue: 1 << 3)
-    static let adjustmentReasonTimeZone = TimeUpdateFlags(rawValue: 1 << 4)
-    static let adjustmentReasonDSTOffest = TimeUpdateFlags(rawValue: 1 << 5)
-    static let epochYear2000 = TimeUpdateFlags(rawValue: 1 << 6)
-    static let secondFractionsNotValid = TimeUpdateFlags(rawValue: 1 << 7)
-    static let allZeros = TimeUpdateFlags([])
+    public init(rawValue: UInt16) {
+        self.rawValue = rawValue
+    }
 
-    static let debugDescriptions: [TimeUpdateFlags:String] = {
+    public static let utcAligned  = TimeUpdateFlags(rawValue: 1 << 0)
+    public static let qualifiedLocalTime = TimeUpdateFlags(rawValue: 1 << 1)
+    public static let adjustmentReasonManual = TimeUpdateFlags(rawValue: 1 << 2)
+    public static let adjustmentReasonExternal = TimeUpdateFlags(rawValue: 1 << 3)
+    public static let adjustmentReasonTimeZone = TimeUpdateFlags(rawValue: 1 << 4)
+    public static let adjustmentReasonDSTOffset = TimeUpdateFlags(rawValue: 1 << 5)
+    public static let epochYear2000 = TimeUpdateFlags(rawValue: 1 << 6)
+    public static let secondFractionsNotValid = TimeUpdateFlags(rawValue: 1 << 7)
+    public static let allZeros = TimeUpdateFlags([])
+
+    public static let debugDescriptions: [TimeUpdateFlags:String] = {
         var descriptions = [TimeUpdateFlags:String]()
         descriptions[.utcAligned] = "utcAligned"
         descriptions[.qualifiedLocalTime] = "qualifiedLocalTime"
         descriptions[.adjustmentReasonManual] = "adjustmentReasonManual"
-        descriptions[.adjustmenReasonExternal] = "adjustmenReasonExternal"
+        descriptions[.adjustmentReasonExternal] = "adjustmentReasonExternal"
         descriptions[.adjustmentReasonTimeZone] = "adjustmentReasonTimeZone"
-        descriptions[.adjustmentReasonDSTOffest] = "adjustmentReasonDSTOffest"
+        descriptions[.adjustmentReasonDSTOffset] = "adjustmentReasonDSTOffset"
         descriptions[.epochYear2000] = "epochYear2000"
         descriptions[.secondFractionsNotValid] = "secondFractionsNotValid"
         return descriptions

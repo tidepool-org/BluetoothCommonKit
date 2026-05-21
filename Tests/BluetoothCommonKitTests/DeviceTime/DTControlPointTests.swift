@@ -73,9 +73,9 @@ final class DTControlPointTests: XCTestCase, E2EProtectionDelegate {
         XCTAssertEqual(TimeUpdateFlags(rawValue: 1), .utcAligned)
         XCTAssertEqual(TimeUpdateFlags(rawValue: 2), .qualifiedLocalTime)
         XCTAssertEqual(TimeUpdateFlags(rawValue: 4), .adjustmentReasonManual)
-        XCTAssertEqual(TimeUpdateFlags(rawValue: 8), .adjustmenReasonExternal)
+        XCTAssertEqual(TimeUpdateFlags(rawValue: 8), .adjustmentReasonExternal)
         XCTAssertEqual(TimeUpdateFlags(rawValue: 16), .adjustmentReasonTimeZone)
-        XCTAssertEqual(TimeUpdateFlags(rawValue: 32), .adjustmentReasonDSTOffest)
+        XCTAssertEqual(TimeUpdateFlags(rawValue: 32), .adjustmentReasonDSTOffset)
         XCTAssertEqual(TimeUpdateFlags(rawValue: 64), .epochYear2000)
         XCTAssertEqual(TimeUpdateFlags(rawValue: 128), .secondFractionsNotValid)
     }
