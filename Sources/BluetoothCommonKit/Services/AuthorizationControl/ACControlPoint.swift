@@ -480,7 +480,7 @@ public class ACControlPointDataHandler: SegmentationHandler, ControlPoint {
 
     public var skipConfirmationCodeAfterKDF = false
 
-    public var skipECDHKeyExchange = false
+    public var willExchangeParentKey = true
 
     public init(securityManager: SecurityManager, maxRequestSize: Int) {
         self.securityManager = securityManager
@@ -575,20 +575,21 @@ public class ACControlPointDataHandler: SegmentationHandler, ControlPoint {
             let result = KeyDescriptor.handleResponse(completeResponse, securityManager: self.securityManager)
             switch result {
             case .success:
-                if !skipECDHKeyExchange {
-                    queueSetClientFixedNonceRequest()
+                queueSetClientFixedNonceRequest()
+                if willExchangeParentKey {
                     if features.contains(.keyFormatClientX509Supported) {
                         // take the x509 path
                         queueGetPHDCertificateNonce()
                     } else {
                         // take the uncompressed key path
+                        let keyID = securityManager.configuration.ecdhKeyID
                         securityManager.generateKeyPair()
-                        queueStartKeyExchangeRequest()
+                        queueStartKeyExchangeRequest(keyID: keyID)
                         queueECDHPublicKeyRequest()
-                        queueKeyExchangeKDFRequest()
+                        queueKeyExchangeKDFRequest(keyID: keyID)
                     }
                 }
-                skipECDHKeyExchange = false
+                willExchangeParentKey = false
                 return (.success(nil), completion)
             default:
                 return (result, completion)
@@ -767,8 +768,8 @@ extension ACControlPointDataHandler: RequestHandler {
         ACControlPointDataHandler.buildControlPointRequest(opcode: ACControlPointOpcode.getATTMTU)
     }
 
-    public func createKeyExchangeKDFRequest() -> Data {
-        let operand = Data(securityManager.configuration.ecdhKeyID)
+    public func createKeyExchangeKDFRequest(keyID: KeyID) -> Data {
+        let operand = Data(keyID)
         return ACControlPointDataHandler.buildControlPointRequest(opcode: ACControlPointOpcode.keyExchangeKDF, operand: operand)
     }
     
@@ -793,8 +794,8 @@ extension ACControlPointDataHandler: RequestHandler {
         return ACControlPointDataHandler.buildControlPointRequest(opcode: ACControlPointOpcode.invalidateAllEstablishedSecurity)
     }
     
-    public func createStartKeyExchangeRequest() -> Data {
-        var operand = Data(securityManager.configuration.ecdhKeyID)
+    public func createStartKeyExchangeRequest(keyID: KeyID) -> Data {
+        var operand = Data(keyID)
         operand.append(StartKeyExchangeConfirmationMethod.noMethod.rawValue)
         operand.append(StartKeyExchangeConfirmationAction.staticAction.rawValue)
 
@@ -836,11 +837,11 @@ extension ACControlPointDataHandler: RequestHandler {
         appendToRequestQueue(createInvalidateAllEstablishedSecurityRequest(), completion: completion)
     }
 
-    public func queueKeyExchangeKDFRequest(completion: ProcedureResultCompletion? = nil) {
-        appendToRequestQueue(createKeyExchangeKDFRequest(), completion: completion)
+    public func queueKeyExchangeKDFRequest(keyID: KeyID? = nil, completion: ProcedureResultCompletion? = nil) {
+        appendToRequestQueue(createKeyExchangeKDFRequest(keyID: keyID ?? securityManager.configuration.ecdhKeyID), completion: completion)
     }
 
-    func queueSetClientFixedNonceRequest(completion: ProcedureResultCompletion? = nil) {
+    public func queueSetClientFixedNonceRequest(completion: ProcedureResultCompletion? = nil) {
         appendToRequestQueue(createSetClientNonceFixedRequest(), completion: completion)
     }
 
@@ -860,8 +861,8 @@ extension ACControlPointDataHandler: RequestHandler {
         appendToRequestQueue(createECDHPublicKeyRequest(certificateData: certificateData), completion: completion)
     }
 
-    public func queueStartKeyExchangeRequest(completion: ProcedureResultCompletion? = nil) {
-        appendToRequestQueue(createStartKeyExchangeRequest(), completion: completion)
+    public func queueStartKeyExchangeRequest(keyID: KeyID? = nil, completion: ProcedureResultCompletion? = nil) {
+        appendToRequestQueue(createStartKeyExchangeRequest(keyID: keyID ?? securityManager.configuration.ecdhKeyID), completion: completion)
     }
 
     func queueECDHConfirmationRandomNumberRequest(completion: ProcedureResultCompletion? = nil) {

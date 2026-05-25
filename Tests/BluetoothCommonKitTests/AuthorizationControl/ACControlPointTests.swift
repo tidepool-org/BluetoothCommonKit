@@ -241,7 +241,7 @@ class ACControlPointTests: XCTestCase {
         let keyID: KeyID = 1
         securityManager.configuration.ecdhKeyID = keyID
         XCTAssertTrue(acControlPoint.requestQueue.isEmpty)
-        acControlPoint.queueKeyExchangeKDFRequest()
+        acControlPoint.queueKeyExchangeKDFRequest(keyID: keyID)
         XCTAssertEqual(acControlPoint.requestQueue.count, 1)
         XCTAssertEqual(acControlPoint.procedureIDForNextRequest(), ACControlPointOpcode.keyExchangeKDF.procedureID)
 
