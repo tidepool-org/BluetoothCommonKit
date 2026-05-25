@@ -190,16 +190,20 @@ final class DTControlPointTests: XCTestCase, E2EProtectionDelegate {
     }
 
     func testCreateProposeTimeUpdateRequest() {
-        let expectedTimeUpdateFlags = TimeUpdateFlags([.epochYear2000, .utcAligned, .secondFractionsNotValid])
         let now = Date()
         let expectedBaseTime = UInt32(now.timeIntervalSince(Date.epoch2000).seconds)
         let timeZone = TimeZone.current
         let expectedTimeZoneOffset = Int8(timeZone.secondsFromGMT() / (60 * 15))
         let expectedTimeSource = TimeSource.networkTimeProtocol
-        let expectedTimeAccuracy = TimeAccuracy.unknown
-
+        let expectedTimeAccuracy: UInt8 = 0
         let expectedDSTOffset = timeZone.dstOffset
-        let request = deviceTimeControlPoint.createProposeTimeUpdateRequest(now, using: timeZone)
+
+        var expectedTimeUpdateFlags: TimeUpdateFlags = [.utcAligned, .qualifiedLocalTime, .epochYear2000, .secondFractionsNotValid, .adjustmentReasonTimeZone]
+        if expectedDSTOffset != .standardTime && expectedDSTOffset != .unknown {
+            expectedTimeUpdateFlags.insert(.adjustmentReasonDSTOffset)
+        }
+
+        let request = deviceTimeControlPoint.createProposeTimeUpdateRequest(now, using: timeZone, features: [.supportedEpochYear2000])
 
         XCTAssertTrue(request.isCRCPrefixValid)
         var index = 2
@@ -215,7 +219,7 @@ final class DTControlPointTests: XCTestCase, E2EProtectionDelegate {
         index += 1
         XCTAssertEqual(TimeSource(rawValue: request[request.startIndex.advanced(by: index)...].to(TimeSource.RawValue.self)), expectedTimeSource)
         index += 1
-        XCTAssertEqual(TimeAccuracy(rawValue: request[request.startIndex.advanced(by: index)...].to(TimeAccuracy.RawValue.self)), expectedTimeAccuracy)
+        XCTAssertEqual(request[request.startIndex.advanced(by: index)...].to(UInt8.self), expectedTimeAccuracy)
     }
 
     func testProcedureIDForResponse() {

@@ -210,31 +210,55 @@ public class DTControlPointDataHandler: ControlPoint, E2EProtection {
         return request
     }
 
-    public func createProposeTimeUpdateRequest(_ date: Date = Date(), using timeZone: TimeZone) -> Data {
-        let timeUpdateFlags = TimeUpdateFlags([.epochYear2000, .utcAligned, .secondFractionsNotValid])
-
+    public func createProposeTimeUpdateRequest(
+        _ date: Date = Date(),
+        using timeZone: TimeZone,
+        features: DTFeatureFlag = [],
+        timeSource: TimeSource = .networkTimeProtocol,
+        timeAccuracy: UInt8 = 0
+    ) -> Data {
         // base time is the number of seconds from January 1, 2000 (Epoch 2000)
         let baseTime = date.baseTimeInSecondsFromEpoch2000
 
         // time zone offset is 15-minute increments from UTC
         let timeZoneOffset = timeZone.gattTimeZoneOffset
-        let dstOffset = TimeZone.current.dstOffset
-        let timeSource = TimeSource.networkTimeProtocol
-        let timeAccuracy = TimeAccuracy.unknown
+        let dstOffset = timeZone.dstOffset
+
+        var timeUpdateFlags: TimeUpdateFlags = [.utcAligned, .qualifiedLocalTime]
+        if features.contains(.supportedEpochYear2000) {
+            timeUpdateFlags.insert(.epochYear2000)
+        }
+        if !features.contains(.supportedBaseTimeSecondFractions) {
+            timeUpdateFlags.insert(.secondFractionsNotValid)
+        }
+        timeUpdateFlags.insert(.adjustmentReasonTimeZone)
+        if dstOffset != .standardTime && dstOffset != .unknown {
+            timeUpdateFlags.insert(.adjustmentReasonDSTOffset)
+        }
 
         var operand = Data(timeUpdateFlags.rawValue)
         operand.append(baseTime)
         operand.append(timeZoneOffset)
         operand.append(dstOffset.rawValue)
         operand.append(timeSource.rawValue)
-        operand.append(timeAccuracy.rawValue)
+        operand.append(timeAccuracy)
 
         return buildRequest(DTControlPointOpcode.proposeTimeUpdate, operand: operand)
     }
 
     //MARK: - Queue Requests
-    public func queueProposeTimeUpdateRequest(_ date: Date = Date(), using timeZone: TimeZone, completion: ProcedureResultCompletion? = nil) {
-        appendToRequestQueue(createProposeTimeUpdateRequest(date, using: timeZone), completion: completion)
+    public func queueProposeTimeUpdateRequest(
+        _ date: Date = Date(),
+        using timeZone: TimeZone,
+        features: DTFeatureFlag = [],
+        timeSource: TimeSource = .networkTimeProtocol,
+        timeAccuracy: UInt8 = 0,
+        completion: ProcedureResultCompletion? = nil
+    ) {
+        appendToRequestQueue(
+            createProposeTimeUpdateRequest(date, using: timeZone, features: features, timeSource: timeSource, timeAccuracy: timeAccuracy),
+            completion: completion
+        )
     }
 }
 
