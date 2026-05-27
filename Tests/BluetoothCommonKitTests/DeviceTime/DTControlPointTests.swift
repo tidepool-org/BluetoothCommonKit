@@ -193,7 +193,7 @@ final class DTControlPointTests: XCTestCase, E2EProtectionDelegate {
         let now = Date()
         let expectedBaseTime = UInt32(now.timeIntervalSince(Date.epoch2000).seconds)
         let timeZone = TimeZone.current
-        let expectedTimeZoneOffset = Int8(timeZone.secondsFromGMT() / (60 * 15))
+        let expectedTimeZoneOffset = Int8((timeZone.secondsFromGMT(for: now) - Int(timeZone.daylightSavingTimeOffset(for: now))) / (60 * 15))
         let expectedTimeSource = TimeSource.networkTimeProtocol
         let expectedTimeAccuracy: UInt8 = 255
         let expectedDSTOffset = timeZone.dstOffset()

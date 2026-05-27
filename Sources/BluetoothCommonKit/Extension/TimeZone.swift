@@ -28,8 +28,9 @@ public extension TimeZone {
         return date.timeIntervalSince(startOfSchedule)
     }
 
-    var gattTimeZoneOffset: Int8 {
+    func gattTimeZoneOffset(for date: Date = Date()) -> Int8 {
         // From GSSv6: The Time Zone characteristic is used to represent the time difference in 15-minute increments between local standard time and UTC.
-        Int8(self.secondsFromGMT() / (60 * 15))
+        let standardSecondsFromGMT = self.secondsFromGMT(for: date) - Int(self.daylightSavingTimeOffset(for: date))
+        return Int8(standardSecondsFromGMT / (60 * 15))
     }
 }

@@ -218,7 +218,7 @@ public class DTControlPointDataHandler: ControlPoint, E2EProtection {
         timeAccuracy: UInt8 = 255
     ) -> Data {
         // time zone offset is 15-minute increments from UTC
-        let timeZoneOffset = timeZone.gattTimeZoneOffset
+        let timeZoneOffset = timeZone.gattTimeZoneOffset(for: date)
         let dstOffset = timeZone.dstOffset(for: date)
 
         var timeUpdateFlags: TimeUpdateFlags = [.utcAligned, .qualifiedLocalTime]
