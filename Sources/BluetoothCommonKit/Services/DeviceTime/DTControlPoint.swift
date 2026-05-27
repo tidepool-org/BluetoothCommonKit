@@ -215,23 +215,29 @@ public class DTControlPointDataHandler: ControlPoint, E2EProtection {
         using timeZone: TimeZone,
         features: DTFeatureFlag = [],
         timeSource: TimeSource = .networkTimeProtocol,
-        timeAccuracy: UInt8 = 0
+        timeAccuracy: UInt8 = 255
     ) -> Data {
-        // base time is the number of seconds from January 1, 2000 (Epoch 2000)
-        let baseTime = date.baseTimeInSecondsFromEpoch2000
-
         // time zone offset is 15-minute increments from UTC
         let timeZoneOffset = timeZone.gattTimeZoneOffset
-        let dstOffset = timeZone.dstOffset
+        let dstOffset = timeZone.dstOffset(for: date)
 
         var timeUpdateFlags: TimeUpdateFlags = [.utcAligned, .qualifiedLocalTime]
+        let baseTime: UInt32
+        
         if features.contains(.supportedEpochYear2000) {
             timeUpdateFlags.insert(.epochYear2000)
+            baseTime = date.baseTimeInSecondsFromEpoch2000
+        } else {
+            // base time is the number of seconds from January 1, 1900 (Epoch 1900)
+            baseTime = date.baseTimeInSecondsFromEpoch1900
         }
+        
         if !features.contains(.supportedBaseTimeSecondFractions) {
             timeUpdateFlags.insert(.secondFractionsNotValid)
         }
+        
         timeUpdateFlags.insert(.adjustmentReasonTimeZone)
+        
         if dstOffset != .standardTime && dstOffset != .unknown {
             timeUpdateFlags.insert(.adjustmentReasonDSTOffset)
         }
@@ -252,7 +258,7 @@ public class DTControlPointDataHandler: ControlPoint, E2EProtection {
         using timeZone: TimeZone,
         features: DTFeatureFlag = [],
         timeSource: TimeSource = .networkTimeProtocol,
-        timeAccuracy: UInt8 = 0,
+        timeAccuracy: UInt8 = 255,
         completion: ProcedureResultCompletion? = nil
     ) {
         appendToRequestQueue(
@@ -438,20 +444,28 @@ public struct TimeUpdateFlags: OptionSet, Hashable, CustomStringConvertible, Sen
 }
 
 public extension Date {
+    static var epoch1900: Date {
+        return Date(timeIntervalSince1970: -2208988800) // Jan 1, 1900 00:00:00 GMT
+    }
+    
     static var epoch2000: Date {
         return Date(timeIntervalSince1970: 946684800) // Jan 1, 2000 00:00:00 GMT
     }
-
+    
+    var baseTimeInSecondsFromEpoch1900: UInt32 {
+        UInt32(self.timeIntervalSince(Date.epoch1900).seconds)
+    }
+    
     var baseTimeInSecondsFromEpoch2000: UInt32 {
         UInt32(self.timeIntervalSince(Date.epoch2000).seconds)
     }
 }
 
 public extension TimeZone {
-    var dstOffset: DSTOffset {
-        guard self.isDaylightSavingTime() else { return .standardTime }
+    func dstOffset(for date: Date = Date()) -> DSTOffset {
+        guard self.isDaylightSavingTime(for: date) else { return .standardTime }
 
-        switch self.daylightSavingTimeOffset().hours {
+        switch self.daylightSavingTimeOffset(for: date).hours {
         case let x where x == 0.5:
             return .daylightHalfHour
         case let x where x == 1:

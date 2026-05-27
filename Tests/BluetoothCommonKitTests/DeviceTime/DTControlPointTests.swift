@@ -195,8 +195,8 @@ final class DTControlPointTests: XCTestCase, E2EProtectionDelegate {
         let timeZone = TimeZone.current
         let expectedTimeZoneOffset = Int8(timeZone.secondsFromGMT() / (60 * 15))
         let expectedTimeSource = TimeSource.networkTimeProtocol
-        let expectedTimeAccuracy: UInt8 = 0
-        let expectedDSTOffset = timeZone.dstOffset
+        let expectedTimeAccuracy: UInt8 = 255
+        let expectedDSTOffset = timeZone.dstOffset()
 
         var expectedTimeUpdateFlags: TimeUpdateFlags = [.utcAligned, .qualifiedLocalTime, .epochYear2000, .secondFractionsNotValid, .adjustmentReasonTimeZone]
         if expectedDSTOffset != .standardTime && expectedDSTOffset != .unknown {
