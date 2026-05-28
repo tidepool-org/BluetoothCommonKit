@@ -32,7 +32,7 @@ final class DeviceTimeTests: XCTestCase, E2EProtectionDelegate {
     func testDeviceTimeHandleData() {
         let timeZone = TimeZone(secondsFromGMT: Int(.hours(-4).seconds))!
         let timeZone15MinIncrements = Int8(timeZone.secondsFromGMT() / (60 * 15))
-        let dstOffset = timeZone.dstOffset
+        let dstOffset = timeZone.dstOffset()
         let statusFlags = DTStatusFlag([.epochYear2000, .utcAligned])
         let baseTime = Date().baseTimeInSecondsFromEpoch2000
         var calendar = Calendar.current
@@ -70,7 +70,7 @@ final class DeviceTimeTests: XCTestCase, E2EProtectionDelegate {
     func testDeviceTimeHandleDataInvalidCRC() {
         let timeZone = TimeZone.current
         let timeZone15MinIncrements = Int8(timeZone.secondsFromGMT() / (60 * 15))
-        let dstOffset = timeZone.dstOffset
+        let dstOffset = timeZone.dstOffset()
         let statusFlags = DTStatusFlag([.epochYear2000, .utcAligned])
         let baseTime = Date().baseTimeInSecondsFromEpoch2000
 
@@ -92,7 +92,7 @@ final class DeviceTimeTests: XCTestCase, E2EProtectionDelegate {
     func testDeviceTimeHandleDataNilDateTimeFault() {
         let timeZone = TimeZone.current
         let timeZone15MinIncrements = Int8(timeZone.secondsFromGMT() / (60 * 15))
-        let dstOffset = timeZone.dstOffset
+        let dstOffset = timeZone.dstOffset()
         let statusFlags = DTStatusFlag([.timeFault, .epochYear2000, .utcAligned])
         let baseTime = Date().baseTimeInSecondsFromEpoch2000
 

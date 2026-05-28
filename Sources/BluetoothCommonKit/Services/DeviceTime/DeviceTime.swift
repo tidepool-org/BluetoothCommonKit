@@ -22,8 +22,8 @@ public class DeviceTimeCharacteristic: ReadableCharacteristic, E2EProtection {
     
     public func createData() -> Data {
         let secondsSinceEpoch2000 = Date().baseTimeInSecondsFromEpoch2000
-        let timeZoneOffset = TimeZone.current.gattTimeZoneOffset
-        let dstOffset = TimeZone.current.dstOffset
+        let timeZoneOffset = TimeZone.current.gattTimeZoneOffset() 
+        let dstOffset = TimeZone.current.dstOffset()
         let status: DTStatusFlag = [.utcAligned, .qualifiedLocalTimeSynchronized, .epochYear2000]
         var characteristicValue = Data(secondsSinceEpoch2000)
         characteristicValue.append(timeZoneOffset)
