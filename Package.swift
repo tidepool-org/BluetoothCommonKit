@@ -13,7 +13,7 @@ let package = Package(
             targets: ["BluetoothCommonKit"]),
     ],
     dependencies: [
-        .package(url: "git@github.com:krzyzanowskim/CryptoSwift.git", from: "1.8.3")
+        .package(url: "https://github.com/krzyzanowskim/CryptoSwift.git", from: "1.8.3")
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
