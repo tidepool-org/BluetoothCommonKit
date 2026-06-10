@@ -1,13 +1,13 @@
 {
-  "originHash" : "ebfcd1a8a57a6db60f17d14de96ac0f143fe059f50aa0f34d031cc0a85dc15ed",
+  "originHash" : "123e8a0d69c3039a7b93af0860c7e01e6683cc4cf8a55154a4a6ed13edcf860c",
   "pins" : [
     {
       "identity" : "cryptoswift",
       "kind" : "remoteSourceControl",
-      "location" : "git@github.com:krzyzanowskim/CryptoSwift.git",
+      "location" : "https://github.com/krzyzanowskim/CryptoSwift.git",
       "state" : {
-        "revision" : "e45a26384239e028ec87fbcc788f513b67e10d8f",
-        "version" : "1.9.0"
+        "revision" : "f2a627b84c1ff96f21ac2fcb623ab36142dd5512",
+        "version" : "1.10.0"
       }
     }
   ],
