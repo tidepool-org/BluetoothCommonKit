@@ -204,7 +204,7 @@ public class BluetoothManager: NSObject {
         }
         
         self.peripheral = peripheral
-        log.debug("Will connect to %{public}@", #function, String(describing: peripheral))
+        log.debug("Will connect to %{public}@", String(describing: peripheral))
         
         centralManagerQueue.sync {
             centralManager.connectIfNecessary(peripheral)
