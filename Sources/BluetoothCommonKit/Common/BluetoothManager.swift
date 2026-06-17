@@ -239,6 +239,23 @@ public class BluetoothManager: NSObject {
         }
     }
 
+    /// Cancels any active connection and starts a fresh scan. Unlike `prepareForNewPeripheral()`
+    /// this bypasses the `retrievePeripherals(withIdentifiers:)` path that would
+    /// otherwise reconnect to a cached `CBPeripheral` without firing discovery.
+    public func rescanForPeripheral() {
+        dispatchPrecondition(condition: .notOnQueue(centralManagerQueue))
+        log.debug("%{public}@", #function)
+
+        centralManagerQueue.sync {
+            stopScanning()
+            if let peripheral, peripheral.state != .disconnected {
+                centralManager.cancelPeripheralConnection(peripheral)
+            }
+            guard centralManager.state == .poweredOn else { return }
+            scanForPeripherals()
+        }
+    }
+
     public func reset() {
         log.debug("%{public}@", #function)
         disconnect()
