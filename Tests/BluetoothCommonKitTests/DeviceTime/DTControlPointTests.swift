@@ -189,6 +189,99 @@ final class DTControlPointTests: XCTestCase, E2EProtectionDelegate {
         }
     }
 
+    func testHandleProcedureRejectedSingleReason() {
+        let requestOpcode = DTControlPointOpcode.proposeTimeUpdate
+        let expectedReason: RejectionFlags = .notRealistic
+        var response = Data(DTControlPointOpcode.responseCode.rawValue)
+        response.append(requestOpcode.rawValue)
+        response.append(DTControlPointResponseCode.procedureRejected.rawValue)
+        response.append(expectedReason.rawValue)
+        response = response.appendingCRCPrefix()
+
+        let (result, _) = deviceTimeControlPoint.handleResponse(response)
+        switch result {
+        case .failure(let error):
+            XCTAssertEqual(error, .procedureRejected(reason: expectedReason.rawValue))
+        default:
+            XCTFail("Expected procedureRejected failure, got \(result)")
+        }
+    }
+
+    func testHandleProcedureRejectedMultipleReasons() {
+        let requestOpcode = DTControlPointOpcode.forceTimeUpdate
+        let expectedReason: RejectionFlags = [.notAuthorized, .baseTimeRejected, .timeZoneDSTRejected]
+        var response = Data(DTControlPointOpcode.responseCode.rawValue)
+        response.append(requestOpcode.rawValue)
+        response.append(DTControlPointResponseCode.procedureRejected.rawValue)
+        response.append(expectedReason.rawValue)
+        response = response.appendingCRCPrefix()
+
+        let (result, _) = deviceTimeControlPoint.handleResponse(response)
+        switch result {
+        case .failure(let error):
+            XCTAssertEqual(error, .procedureRejected(reason: expectedReason.rawValue))
+            let parsed = RejectionFlags(rawValue: extractReason(from: error))
+            XCTAssertTrue(parsed.contains(.notAuthorized))
+            XCTAssertTrue(parsed.contains(.baseTimeRejected))
+            XCTAssertTrue(parsed.contains(.timeZoneDSTRejected))
+            XCTAssertFalse(parsed.contains(.notRealistic))
+        default:
+            XCTFail("Expected procedureRejected failure, got \(result)")
+        }
+    }
+
+    func testHandleProcedureRejectedAllReasons() {
+        let requestOpcode = DTControlPointOpcode.proposeTimeUpdate
+        let expectedReason: RejectionFlags = [
+            .notRealistic,
+            .notAuthorized,
+            .outOfRangeOperand,
+            .notUTCAligned,
+            .outOfRangeTimeAccuracy,
+            .timeSourceLowQuality,
+            .epochYearNotAligned,
+            .lackOfPrecision,
+            .baseTimeRejected,
+            .timeZoneDSTRejected
+        ]
+        var response = Data(DTControlPointOpcode.responseCode.rawValue)
+        response.append(requestOpcode.rawValue)
+        response.append(DTControlPointResponseCode.procedureRejected.rawValue)
+        response.append(expectedReason.rawValue)
+        response = response.appendingCRCPrefix()
+
+        let (result, _) = deviceTimeControlPoint.handleResponse(response)
+        switch result {
+        case .failure(let error):
+            XCTAssertEqual(error, .procedureRejected(reason: expectedReason.rawValue))
+        default:
+            XCTFail("Expected procedureRejected failure, got \(result)")
+        }
+    }
+
+    func testHandleProcedureRejectedMissingReasonDefaultsToAllZeros() {
+        let requestOpcode = DTControlPointOpcode.forceTimeUpdate
+        var response = Data(DTControlPointOpcode.responseCode.rawValue)
+        response.append(requestOpcode.rawValue)
+        response.append(DTControlPointResponseCode.procedureRejected.rawValue)
+        response = response.appendingCRCPrefix()
+
+        let (result, _) = deviceTimeControlPoint.handleResponse(response)
+        switch result {
+        case .failure(let error):
+            XCTAssertEqual(error, .procedureRejected(reason: RejectionFlags.allZeros.rawValue))
+        default:
+            XCTFail("Expected procedureRejected failure, got \(result)")
+        }
+    }
+
+    private func extractReason(from error: DeviceCommError) -> UInt16 {
+        if case .procedureRejected(let reason) = error {
+            return reason
+        }
+        return 0
+    }
+
     func testCreateProposeTimeUpdateRequest() {
         let now = Date()
         let expectedBaseTime = UInt32(now.timeIntervalSince(Date.epoch2000).seconds)

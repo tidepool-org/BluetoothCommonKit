@@ -39,6 +39,7 @@ public enum DeviceCommError: Equatable {
     case procedureInProgress
     case procedureNotApplicable
     case procedureNotCompleted
+    case procedureRejected(reason: UInt16)
     case procedureTimeout
     case securityManagerError(SecurityManagerError)
     case unknown
@@ -96,6 +97,8 @@ extension DeviceCommError: LocalizedError {
             return LocalizedString("Could not complete request. Wait a few seconds before trying again. If the issue does not resolve on its own you will receive additional information describing how to fix the problem.", comment: "Error description when a procedure is not applicable")
         case .procedureNotCompleted:
             return LocalizedString("The procedure was not completed.", comment: "Error description when a procedure is not completed")
+        case .procedureRejected:
+            return LocalizedString("The procedure was rejected by the device.", comment: "Error description when a procedure is rejected by the device")
         case .procedureTimeout:
             return LocalizedString("Procedure on your device has timed out.\n\nCheck whether the device is too far away and try again.", comment: "Error description when the procedure times out")
         case .securityManagerError(_):

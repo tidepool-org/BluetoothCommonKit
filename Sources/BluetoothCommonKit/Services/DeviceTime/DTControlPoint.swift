@@ -132,7 +132,14 @@ public class DTControlPointDataHandler: ControlPoint, E2EProtection {
             case .invalidOperand:
                 return (.failure(.invalidOperand), completion)
             case .procedureRejected:
-                return (.failure(.procedureNotCompleted), completion)
+                let reasonStart = response.startIndex.advanced(by: index + 2)
+                let reason: RejectionFlags
+                if response.distance(from: reasonStart, to: response.endIndex) >= 2 {
+                    reason = RejectionFlags(rawValue: response.subdata(in: reasonStart..<reasonStart.advanced(by: 2)).to(UInt16.self))
+                } else {
+                    reason = .allZeros
+                }
+                return (.failure(.procedureRejected(reason: reason.rawValue)), completion)
             case .operationFailed:
                 return (.failure(.procedureNotCompleted), completion)
             case .deviceBusy:
