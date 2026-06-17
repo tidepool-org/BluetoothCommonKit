@@ -169,7 +169,7 @@ final class DTControlPointTests: XCTestCase, E2EProtectionDelegate {
         (result, _) = deviceTimeControlPoint.handleResponse(response)
         switch result {
         case .failure(let error):
-            XCTAssertEqual(error, .procedureNotCompleted)
+            XCTAssertEqual(error, .procedureRejected(reason: 0))
         default:
             XCTAssert(false)
         }
