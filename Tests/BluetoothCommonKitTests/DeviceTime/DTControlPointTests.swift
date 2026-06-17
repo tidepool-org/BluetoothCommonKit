@@ -222,6 +222,78 @@ final class DTControlPointTests: XCTestCase, E2EProtectionDelegate {
         XCTAssertEqual(request[request.startIndex.advanced(by: index)...].to(UInt8.self), expectedTimeAccuracy)
     }
 
+    func testCreateForceTimeUpdateRequest() {
+        let now = Date()
+        let expectedBaseTime = UInt32(now.timeIntervalSince(Date.epoch2000).seconds)
+        let timeZone = TimeZone.current
+        let expectedTimeZoneOffset = Int8((timeZone.secondsFromGMT(for: now) - Int(timeZone.daylightSavingTimeOffset(for: now))) / (60 * 15))
+        let expectedTimeSource = TimeSource.networkTimeProtocol
+        let expectedTimeAccuracy: UInt8 = 255
+        let expectedDSTOffset = timeZone.dstOffset(for: now)
+
+        var expectedTimeUpdateFlags: TimeUpdateFlags = [.utcAligned, .qualifiedLocalTime, .epochYear2000, .secondFractionsNotValid, .adjustmentReasonTimeZone]
+        if expectedDSTOffset != .standardTime && expectedDSTOffset != .unknown {
+            expectedTimeUpdateFlags.insert(.adjustmentReasonDSTOffset)
+        }
+
+        let request = deviceTimeControlPoint.createForceTimeUpdateRequest(now, using: timeZone, features: [.supportedEpochYear2000])
+
+        XCTAssertTrue(request.isCRCPrefixValid)
+        var index = 2
+        XCTAssertEqual(DTControlPointOpcode(rawValue: request[request.startIndex.advanced(by: index)...].to(DTControlPointOpcode.RawValue.self)), DTControlPointOpcode.forceTimeUpdate)
+        index += 1
+        XCTAssertEqual(TimeUpdateFlags(rawValue: request[request.startIndex.advanced(by: index)...].to(TimeUpdateFlags.RawValue.self)), expectedTimeUpdateFlags)
+        index += 2
+        XCTAssertEqual(request[request.startIndex.advanced(by: index)...].to(UInt32.self), expectedBaseTime)
+        index += 4
+        XCTAssertEqual(request[request.startIndex.advanced(by: index)...].to(Int8.self), expectedTimeZoneOffset)
+        index += 1
+        XCTAssertEqual(DSTOffset(rawValue: request[request.startIndex.advanced(by: index)...].to(UInt8.self)), expectedDSTOffset)
+        index += 1
+        XCTAssertEqual(TimeSource(rawValue: request[request.startIndex.advanced(by: index)...].to(TimeSource.RawValue.self)), expectedTimeSource)
+        index += 1
+        XCTAssertEqual(request[request.startIndex.advanced(by: index)...].to(UInt8.self), expectedTimeAccuracy)
+    }
+
+    func testCreateForceTimeUpdateRequestEpoch1900() {
+        let now = Date()
+        let expectedBaseTime = UInt32(now.timeIntervalSince(Date.epoch1900).seconds)
+        let timeZone = TimeZone.current
+        let expectedTimeZoneOffset = Int8((timeZone.secondsFromGMT(for: now) - Int(timeZone.daylightSavingTimeOffset(for: now))) / (60 * 15))
+        let expectedTimeSource = TimeSource.manual
+        let expectedTimeAccuracy: UInt8 = 42
+        let expectedDSTOffset = timeZone.dstOffset(for: now)
+
+        var expectedTimeUpdateFlags: TimeUpdateFlags = [.utcAligned, .qualifiedLocalTime, .secondFractionsNotValid, .adjustmentReasonTimeZone]
+        if expectedDSTOffset != .standardTime && expectedDSTOffset != .unknown {
+            expectedTimeUpdateFlags.insert(.adjustmentReasonDSTOffset)
+        }
+
+        let request = deviceTimeControlPoint.createForceTimeUpdateRequest(
+            now,
+            using: timeZone,
+            features: [],
+            timeSource: expectedTimeSource,
+            timeAccuracy: expectedTimeAccuracy
+        )
+
+        XCTAssertTrue(request.isCRCPrefixValid)
+        var index = 2
+        XCTAssertEqual(DTControlPointOpcode(rawValue: request[request.startIndex.advanced(by: index)...].to(DTControlPointOpcode.RawValue.self)), DTControlPointOpcode.forceTimeUpdate)
+        index += 1
+        XCTAssertEqual(TimeUpdateFlags(rawValue: request[request.startIndex.advanced(by: index)...].to(TimeUpdateFlags.RawValue.self)), expectedTimeUpdateFlags)
+        index += 2
+        XCTAssertEqual(request[request.startIndex.advanced(by: index)...].to(UInt32.self), expectedBaseTime)
+        index += 4
+        XCTAssertEqual(request[request.startIndex.advanced(by: index)...].to(Int8.self), expectedTimeZoneOffset)
+        index += 1
+        XCTAssertEqual(DSTOffset(rawValue: request[request.startIndex.advanced(by: index)...].to(UInt8.self)), expectedDSTOffset)
+        index += 1
+        XCTAssertEqual(TimeSource(rawValue: request[request.startIndex.advanced(by: index)...].to(TimeSource.RawValue.self)), expectedTimeSource)
+        index += 1
+        XCTAssertEqual(request[request.startIndex.advanced(by: index)...].to(UInt8.self), expectedTimeAccuracy)
+    }
+
     func testProcedureIDForResponse() {
         for opcode in DTControlPointOpcode.responseOpcodes {
             if opcode == .responseCode {
