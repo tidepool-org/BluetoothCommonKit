@@ -169,7 +169,7 @@ final class DTControlPointTests: XCTestCase, E2EProtectionDelegate {
         (result, _) = deviceTimeControlPoint.handleResponse(response)
         switch result {
         case .failure(let error):
-            XCTAssertEqual(error, .procedureNotCompleted)
+            XCTAssertEqual(error, .procedureRejected(reason: 0))
         default:
             XCTAssert(false)
         }
@@ -187,6 +187,99 @@ final class DTControlPointTests: XCTestCase, E2EProtectionDelegate {
         default:
             XCTAssert(false)
         }
+    }
+
+    func testHandleProcedureRejectedSingleReason() {
+        let requestOpcode = DTControlPointOpcode.proposeTimeUpdate
+        let expectedReason: RejectionFlags = .notRealistic
+        var response = Data(DTControlPointOpcode.responseCode.rawValue)
+        response.append(requestOpcode.rawValue)
+        response.append(DTControlPointResponseCode.procedureRejected.rawValue)
+        response.append(expectedReason.rawValue)
+        response = response.appendingCRCPrefix()
+
+        let (result, _) = deviceTimeControlPoint.handleResponse(response)
+        switch result {
+        case .failure(let error):
+            XCTAssertEqual(error, .procedureRejected(reason: expectedReason.rawValue))
+        default:
+            XCTFail("Expected procedureRejected failure, got \(result)")
+        }
+    }
+
+    func testHandleProcedureRejectedMultipleReasons() {
+        let requestOpcode = DTControlPointOpcode.forceTimeUpdate
+        let expectedReason: RejectionFlags = [.notAuthorized, .baseTimeRejected, .timeZoneDSTRejected]
+        var response = Data(DTControlPointOpcode.responseCode.rawValue)
+        response.append(requestOpcode.rawValue)
+        response.append(DTControlPointResponseCode.procedureRejected.rawValue)
+        response.append(expectedReason.rawValue)
+        response = response.appendingCRCPrefix()
+
+        let (result, _) = deviceTimeControlPoint.handleResponse(response)
+        switch result {
+        case .failure(let error):
+            XCTAssertEqual(error, .procedureRejected(reason: expectedReason.rawValue))
+            let parsed = RejectionFlags(rawValue: extractReason(from: error))
+            XCTAssertTrue(parsed.contains(.notAuthorized))
+            XCTAssertTrue(parsed.contains(.baseTimeRejected))
+            XCTAssertTrue(parsed.contains(.timeZoneDSTRejected))
+            XCTAssertFalse(parsed.contains(.notRealistic))
+        default:
+            XCTFail("Expected procedureRejected failure, got \(result)")
+        }
+    }
+
+    func testHandleProcedureRejectedAllReasons() {
+        let requestOpcode = DTControlPointOpcode.proposeTimeUpdate
+        let expectedReason: RejectionFlags = [
+            .notRealistic,
+            .notAuthorized,
+            .outOfRangeOperand,
+            .notUTCAligned,
+            .outOfRangeTimeAccuracy,
+            .timeSourceLowQuality,
+            .epochYearNotAligned,
+            .lackOfPrecision,
+            .baseTimeRejected,
+            .timeZoneDSTRejected
+        ]
+        var response = Data(DTControlPointOpcode.responseCode.rawValue)
+        response.append(requestOpcode.rawValue)
+        response.append(DTControlPointResponseCode.procedureRejected.rawValue)
+        response.append(expectedReason.rawValue)
+        response = response.appendingCRCPrefix()
+
+        let (result, _) = deviceTimeControlPoint.handleResponse(response)
+        switch result {
+        case .failure(let error):
+            XCTAssertEqual(error, .procedureRejected(reason: expectedReason.rawValue))
+        default:
+            XCTFail("Expected procedureRejected failure, got \(result)")
+        }
+    }
+
+    func testHandleProcedureRejectedMissingReasonDefaultsToAllZeros() {
+        let requestOpcode = DTControlPointOpcode.forceTimeUpdate
+        var response = Data(DTControlPointOpcode.responseCode.rawValue)
+        response.append(requestOpcode.rawValue)
+        response.append(DTControlPointResponseCode.procedureRejected.rawValue)
+        response = response.appendingCRCPrefix()
+
+        let (result, _) = deviceTimeControlPoint.handleResponse(response)
+        switch result {
+        case .failure(let error):
+            XCTAssertEqual(error, .procedureRejected(reason: RejectionFlags.allZeros.rawValue))
+        default:
+            XCTFail("Expected procedureRejected failure, got \(result)")
+        }
+    }
+
+    private func extractReason(from error: DeviceCommError) -> UInt16 {
+        if case .procedureRejected(let reason) = error {
+            return reason
+        }
+        return 0
     }
 
     func testCreateProposeTimeUpdateRequest() {
@@ -208,6 +301,78 @@ final class DTControlPointTests: XCTestCase, E2EProtectionDelegate {
         XCTAssertTrue(request.isCRCPrefixValid)
         var index = 2
         XCTAssertEqual(DTControlPointOpcode(rawValue: request[request.startIndex.advanced(by: index)...].to(DTControlPointOpcode.RawValue.self)), DTControlPointOpcode.proposeTimeUpdate)
+        index += 1
+        XCTAssertEqual(TimeUpdateFlags(rawValue: request[request.startIndex.advanced(by: index)...].to(TimeUpdateFlags.RawValue.self)), expectedTimeUpdateFlags)
+        index += 2
+        XCTAssertEqual(request[request.startIndex.advanced(by: index)...].to(UInt32.self), expectedBaseTime)
+        index += 4
+        XCTAssertEqual(request[request.startIndex.advanced(by: index)...].to(Int8.self), expectedTimeZoneOffset)
+        index += 1
+        XCTAssertEqual(DSTOffset(rawValue: request[request.startIndex.advanced(by: index)...].to(UInt8.self)), expectedDSTOffset)
+        index += 1
+        XCTAssertEqual(TimeSource(rawValue: request[request.startIndex.advanced(by: index)...].to(TimeSource.RawValue.self)), expectedTimeSource)
+        index += 1
+        XCTAssertEqual(request[request.startIndex.advanced(by: index)...].to(UInt8.self), expectedTimeAccuracy)
+    }
+
+    func testCreateForceTimeUpdateRequest() {
+        let now = Date()
+        let expectedBaseTime = UInt32(now.timeIntervalSince(Date.epoch2000).seconds)
+        let timeZone = TimeZone.current
+        let expectedTimeZoneOffset = Int8((timeZone.secondsFromGMT(for: now) - Int(timeZone.daylightSavingTimeOffset(for: now))) / (60 * 15))
+        let expectedTimeSource = TimeSource.networkTimeProtocol
+        let expectedTimeAccuracy: UInt8 = 255
+        let expectedDSTOffset = timeZone.dstOffset(for: now)
+
+        var expectedTimeUpdateFlags: TimeUpdateFlags = [.utcAligned, .qualifiedLocalTime, .epochYear2000, .secondFractionsNotValid, .adjustmentReasonTimeZone]
+        if expectedDSTOffset != .standardTime && expectedDSTOffset != .unknown {
+            expectedTimeUpdateFlags.insert(.adjustmentReasonDSTOffset)
+        }
+
+        let request = deviceTimeControlPoint.createForceTimeUpdateRequest(now, using: timeZone, features: [.supportedEpochYear2000])
+
+        XCTAssertTrue(request.isCRCPrefixValid)
+        var index = 2
+        XCTAssertEqual(DTControlPointOpcode(rawValue: request[request.startIndex.advanced(by: index)...].to(DTControlPointOpcode.RawValue.self)), DTControlPointOpcode.forceTimeUpdate)
+        index += 1
+        XCTAssertEqual(TimeUpdateFlags(rawValue: request[request.startIndex.advanced(by: index)...].to(TimeUpdateFlags.RawValue.self)), expectedTimeUpdateFlags)
+        index += 2
+        XCTAssertEqual(request[request.startIndex.advanced(by: index)...].to(UInt32.self), expectedBaseTime)
+        index += 4
+        XCTAssertEqual(request[request.startIndex.advanced(by: index)...].to(Int8.self), expectedTimeZoneOffset)
+        index += 1
+        XCTAssertEqual(DSTOffset(rawValue: request[request.startIndex.advanced(by: index)...].to(UInt8.self)), expectedDSTOffset)
+        index += 1
+        XCTAssertEqual(TimeSource(rawValue: request[request.startIndex.advanced(by: index)...].to(TimeSource.RawValue.self)), expectedTimeSource)
+        index += 1
+        XCTAssertEqual(request[request.startIndex.advanced(by: index)...].to(UInt8.self), expectedTimeAccuracy)
+    }
+
+    func testCreateForceTimeUpdateRequestEpoch1900() {
+        let now = Date()
+        let expectedBaseTime = UInt32(now.timeIntervalSince(Date.epoch1900).seconds)
+        let timeZone = TimeZone.current
+        let expectedTimeZoneOffset = Int8((timeZone.secondsFromGMT(for: now) - Int(timeZone.daylightSavingTimeOffset(for: now))) / (60 * 15))
+        let expectedTimeSource = TimeSource.manual
+        let expectedTimeAccuracy: UInt8 = 42
+        let expectedDSTOffset = timeZone.dstOffset(for: now)
+
+        var expectedTimeUpdateFlags: TimeUpdateFlags = [.utcAligned, .qualifiedLocalTime, .secondFractionsNotValid, .adjustmentReasonTimeZone]
+        if expectedDSTOffset != .standardTime && expectedDSTOffset != .unknown {
+            expectedTimeUpdateFlags.insert(.adjustmentReasonDSTOffset)
+        }
+
+        let request = deviceTimeControlPoint.createForceTimeUpdateRequest(
+            now,
+            using: timeZone,
+            features: [],
+            timeSource: expectedTimeSource,
+            timeAccuracy: expectedTimeAccuracy
+        )
+
+        XCTAssertTrue(request.isCRCPrefixValid)
+        var index = 2
+        XCTAssertEqual(DTControlPointOpcode(rawValue: request[request.startIndex.advanced(by: index)...].to(DTControlPointOpcode.RawValue.self)), DTControlPointOpcode.forceTimeUpdate)
         index += 1
         XCTAssertEqual(TimeUpdateFlags(rawValue: request[request.startIndex.advanced(by: index)...].to(TimeUpdateFlags.RawValue.self)), expectedTimeUpdateFlags)
         index += 2

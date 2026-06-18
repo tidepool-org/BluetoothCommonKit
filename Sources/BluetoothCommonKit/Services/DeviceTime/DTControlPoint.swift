@@ -132,7 +132,14 @@ public class DTControlPointDataHandler: ControlPoint, E2EProtection {
             case .invalidOperand:
                 return (.failure(.invalidOperand), completion)
             case .procedureRejected:
-                return (.failure(.procedureNotCompleted), completion)
+                let reasonStart = response.startIndex.advanced(by: index + 2)
+                let reason: RejectionFlags
+                if response.distance(from: reasonStart, to: response.endIndex) >= 2 {
+                    reason = RejectionFlags(rawValue: response.subdata(in: reasonStart..<reasonStart.advanced(by: 2)).to(UInt16.self))
+                } else {
+                    reason = .allZeros
+                }
+                return (.failure(.procedureRejected(reason: reason.rawValue)), completion)
             case .operationFailed:
                 return (.failure(.procedureNotCompleted), completion)
             case .deviceBusy:
@@ -217,13 +224,35 @@ public class DTControlPointDataHandler: ControlPoint, E2EProtection {
         timeSource: TimeSource = .networkTimeProtocol,
         timeAccuracy: UInt8 = 255
     ) -> Data {
+        let operand = buildTimeUpdateOperand(date: date, timeZone: timeZone, features: features, timeSource: timeSource, timeAccuracy: timeAccuracy)
+        return buildRequest(DTControlPointOpcode.proposeTimeUpdate, operand: operand)
+    }
+
+    public func createForceTimeUpdateRequest(
+        _ date: Date = Date(),
+        using timeZone: TimeZone,
+        features: DTFeatureFlag = [],
+        timeSource: TimeSource = .networkTimeProtocol,
+        timeAccuracy: UInt8 = 255
+    ) -> Data {
+        let operand = buildTimeUpdateOperand(date: date, timeZone: timeZone, features: features, timeSource: timeSource, timeAccuracy: timeAccuracy)
+        return buildRequest(DTControlPointOpcode.forceTimeUpdate, operand: operand)
+    }
+
+    private func buildTimeUpdateOperand(
+        date: Date,
+        timeZone: TimeZone,
+        features: DTFeatureFlag,
+        timeSource: TimeSource,
+        timeAccuracy: UInt8
+    ) -> Data {
         // time zone offset is 15-minute increments from UTC
         let timeZoneOffset = timeZone.gattTimeZoneOffset(for: date)
         let dstOffset = timeZone.dstOffset(for: date)
 
         var timeUpdateFlags: TimeUpdateFlags = [.utcAligned, .qualifiedLocalTime]
         let baseTime: UInt32
-        
+
         if features.contains(.supportedEpochYear2000) {
             timeUpdateFlags.insert(.epochYear2000)
             baseTime = date.baseTimeInSecondsFromEpoch2000
@@ -231,13 +260,13 @@ public class DTControlPointDataHandler: ControlPoint, E2EProtection {
             // base time is the number of seconds from January 1, 1900 (Epoch 1900)
             baseTime = date.baseTimeInSecondsFromEpoch1900
         }
-        
+
         if !features.contains(.supportedBaseTimeSecondFractions) {
             timeUpdateFlags.insert(.secondFractionsNotValid)
         }
-        
+
         timeUpdateFlags.insert(.adjustmentReasonTimeZone)
-        
+
         if dstOffset != .standardTime && dstOffset != .unknown {
             timeUpdateFlags.insert(.adjustmentReasonDSTOffset)
         }
@@ -248,8 +277,7 @@ public class DTControlPointDataHandler: ControlPoint, E2EProtection {
         operand.append(dstOffset.rawValue)
         operand.append(timeSource.rawValue)
         operand.append(timeAccuracy)
-
-        return buildRequest(DTControlPointOpcode.proposeTimeUpdate, operand: operand)
+        return operand
     }
 
     //MARK: - Queue Requests
@@ -263,6 +291,20 @@ public class DTControlPointDataHandler: ControlPoint, E2EProtection {
     ) {
         appendToRequestQueue(
             createProposeTimeUpdateRequest(date, using: timeZone, features: features, timeSource: timeSource, timeAccuracy: timeAccuracy),
+            completion: completion
+        )
+    }
+
+    public func queueForceTimeUpdateRequest(
+        _ date: Date = Date(),
+        using timeZone: TimeZone,
+        features: DTFeatureFlag = [],
+        timeSource: TimeSource = .networkTimeProtocol,
+        timeAccuracy: UInt8 = 255,
+        completion: ProcedureResultCompletion? = nil
+    ) {
+        appendToRequestQueue(
+            createForceTimeUpdateRequest(date, using: timeZone, features: features, timeSource: timeSource, timeAccuracy: timeAccuracy),
             completion: completion
         )
     }
