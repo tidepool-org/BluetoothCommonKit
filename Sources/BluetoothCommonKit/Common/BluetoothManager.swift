@@ -281,7 +281,17 @@ public class BluetoothManager: NSObject {
         }
 
         let currentState = peripheral?.state ?? .disconnected
-        guard currentState != .connected else {
+        if currentState == .connected, let peripheral = peripheral {
+            // CBCentralManager state restoration (enabled via CBCentralManagerOptionRestoreIdentifierKey)
+            // hands us back peripherals with `state == .connected` and a populated
+            // `services` cache, but our app-level state machines (ACS auth, characteristic
+            // subscriptions, ID handle map) are reset and never run if we bail here.
+            // The didBecomeActive observer above already early-bails on .connected so
+            // this branch only runs at launch / BT poweredOn. Force a clean reconnect:
+            // cancelPeripheralConnection → didDisconnect → reconnectToPeripheral →
+            // didConnect → normal post-connect flow.
+            log.debug("Cancelling stale connection to %{public}@ before reconnect", peripheral.identifier.uuidString)
+            centralManager.cancelPeripheralConnection(peripheral)
             return
         }
 
@@ -399,7 +409,7 @@ extension BluetoothManager: CBCentralManagerDelegate {
     public func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         dispatchPrecondition(condition: .onQueue(centralManagerQueue))
         guard let peripheralManager = peripheralManager else { return }
-        
+
         if let error = error as NSError? {
             log.error("%{public}@: %{public}@", #function, error)
             delegate?.bluetoothManager(self, peripheralManager: peripheralManager, isReadyWithError: error)
