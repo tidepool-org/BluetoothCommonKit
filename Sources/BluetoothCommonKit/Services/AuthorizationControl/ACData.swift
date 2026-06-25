@@ -238,11 +238,11 @@ public class ACDataDataHandler: SegmentationHandler {
             case .success(let response):
                 log.debug("response %{public}@", response.toHexString())
                 
-                guard response.count >= 2 else {
+                guard response.count >= ResourceHandle.bitWidth/8 else {
                     log.debug("decrypted response too short for resource handle: %d bytes; ignoring", response.count)
                     return .failure(.invalidFormat)
                 }
-                let resourceHandle: ResourceHandle = response[response.startIndex...].to(UInt16.self)
+                let resourceHandle: ResourceHandle = response[response.startIndex...].to(ResourceHandle.self)
                 return .success(ResourceResponse(resourceHandle: resourceHandle, response: response.dropFirst(2)))
             case .failure(let error):
                 return .failure(.securityManagerError(error))
