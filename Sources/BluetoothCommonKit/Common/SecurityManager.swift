@@ -511,6 +511,22 @@ extension SecurityManager {
             return .failure(.missingKey)
         }
         
+        // Guard against malformed / too-short payloads before indexing. Undecryptable
+        // Data-Out packets are expected (e.g. during the post-KDF server key switch on
+        // reconnect); without this guard the subdata(in:) calls below trap on a short
+        // payload (Swift range precondition -> EXC_BREAKPOINT on the BLE queue).
+        let requiredMinimumSize = configuration.securityControls.reduce(2) { partial, control in
+            switch control {
+            case .nonce: return partial + configuration.nonceSizeOctetsVariable
+            case .mac: return partial + configuration.macSize
+            default: return partial
+            }
+        }
+        guard securePayload.count >= requiredMinimumSize else {
+            log.error("Secure payload too short: %d bytes (need >= %d); ignoring", securePayload.count, requiredMinimumSize)
+            return .failure(.decryptionFailed)
+        }
+
         let securityConfigurationID = securePayload[securePayload.startIndex...].to(UInt16.self)
         guard securityConfigurationID == configuration.securityConfigurationID else {
             log.error("Unexpected security configuration ID. Expected %d, received %d", configuration.securityConfigurationID, securityConfigurationID)

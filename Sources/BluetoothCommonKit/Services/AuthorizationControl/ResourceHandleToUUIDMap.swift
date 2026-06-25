@@ -39,8 +39,8 @@ struct ResourceHandleToUUIDMap: RequestHandler {
             index += 1
 
             guard index + uuidSize <= response.count else { return .failure(.invalidFormat) }
-            let uuidString = parseUUIDString(uuidSize: uuidSize, index: index, data: response)
-            uuidStringToHandleMap[CBUUID(string: uuidString)] = handle
+            guard let cbuuid = resourceCBUUID(uuidSize: uuidSize, index: index, data: response) else { return .failure(.invalidFormat) }
+            uuidStringToHandleMap[cbuuid] = handle
             index += Int(uuidSize)
 
             guard index + subattributesHeaderSize <= response.count else { return .failure(.invalidFormat) }
@@ -62,8 +62,8 @@ struct ResourceHandleToUUIDMap: RequestHandler {
                     index += 1
 
                     guard index + uuidSize <= response.count else { return .failure(.invalidFormat) }
-                    let uuidString = parseUUIDString(uuidSize: uuidSize, index: index, data: response)
-                    uuidStringToHandleMap[CBUUID(string: uuidString)] = handle
+                    guard let cbuuid = resourceCBUUID(uuidSize: uuidSize, index: index, data: response) else { return .failure(.invalidFormat) }
+                    uuidStringToHandleMap[cbuuid] = handle
                     index += Int(uuidSize)
 
                     guard index + subattributesHeaderSize <= response.count else { return .failure(.invalidFormat) }
@@ -82,8 +82,8 @@ struct ResourceHandleToUUIDMap: RequestHandler {
                         index += 1
 
                         guard index + uuidSize <= response.count else { return .failure(.invalidFormat) }
-                        let uuidString = parseUUIDString(uuidSize: uuidSize, index: index, data: response)
-                        uuidStringToHandleMap[CBUUID(string: uuidString)] = handle
+                        guard let cbuuid = resourceCBUUID(uuidSize: uuidSize, index: index, data: response) else { return .failure(.invalidFormat) }
+                        uuidStringToHandleMap[cbuuid] = handle
                         index += Int(uuidSize)
                     }
                 } else {
@@ -95,14 +95,27 @@ struct ResourceHandleToUUIDMap: RequestHandler {
                     index += 1
 
                     guard index + uuidSize <= response.count else { return .failure(.invalidFormat) }
-                    let uuidString = parseUUIDString(uuidSize: uuidSize, index: index, data: response)
-                    uuidStringToHandleMap[CBUUID(string: uuidString)] = handle
+                    guard let cbuuid = resourceCBUUID(uuidSize: uuidSize, index: index, data: response) else { return .failure(.invalidFormat) }
+                    uuidStringToHandleMap[cbuuid] = handle
                     index += Int(uuidSize)
                 }
             }
         }
             
         return .success(uuidStringToHandleMap)
+    }
+
+    /// Builds a `CBUUID` from a resource-map record, returning `nil` for any UUID
+    /// size other than 2/4/16 bytes. `CBUUID(string:)` raises an *uncatchable*
+    /// Obj-C `NSException` ("String does not represent a valid UUID") for other
+    /// sizes, which crashes the BLE queue when a reconnect delivers a misframed
+    /// response. Returning `nil` lets the caller fail the parse gracefully.
+    static func resourceCBUUID(uuidSize: Int, index: Int, data: Data) -> CBUUID? {
+        guard uuidSize == 2 || uuidSize == 4 || uuidSize == 16 else {
+            log.error("Resource-handle map: unsupported UUID size %d; aborting parse", uuidSize)
+            return nil
+        }
+        return CBUUID(string: parseUUIDString(uuidSize: uuidSize, index: index, data: data))
     }
 
     static func parseUUIDString(uuidSize: Int, index: Int, data: Data) -> String {
