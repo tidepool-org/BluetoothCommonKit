@@ -20,8 +20,13 @@ public protocol SegmentationHandler: AnyObject {
     func segmentPayload(_ payload: Data) -> [Data]
     
     func checkSegmentedPayload(_ segmentedPayload: Data) -> Result<Data, DeviceCommError>
-    
+
     func resetSegmentCounter()
+
+    /// Clears any in-progress reassembly state and resets the segment counter.
+    /// Call this on disconnect to prevent partial reassemblies from a dropped
+    /// connection from contaminating the next session's responses.
+    func resetSegmentation()
 }
 
 public extension SegmentationHandler {
@@ -75,12 +80,22 @@ public extension SegmentationHandler {
                 // Response is complete. Remove the segmentation header and provide the complete reponse
                 return .success(Data(segmentedPayload[segmentedPayload.startIndex.advanced(by: 1)...]))
             } else {
+                // detect and remove any stale payloads
+                storedPayloads.removeAll { stored in
+                    SegmentationHeader(rawValue: stored[stored.startIndex...].to(UInt8.self)).counter
+                        == receivedSegmentationHeader.counter
+                }
                 // store the response segment to reassemble with remaining segments
                 storedPayloads.append(segmentedPayload)
                 return .failure(.partialResponse)
             }
         } else {
-            // response is a continuation of a previous response
+            // detect and remove any stale payloads
+            storedPayloads.removeAll { stored in
+                SegmentationHeader(rawValue: stored[stored.startIndex...].to(UInt8.self)).counter
+                    == receivedSegmentationHeader.counter
+            }
+
             // find the previous response using the segment counter
             for (index, storedPayload) in storedPayloads.enumerated() {
                 let storedSegmentationHeader = SegmentationHeader(rawValue: storedPayload[storedPayload.startIndex...].to(UInt8.self))
@@ -111,5 +126,10 @@ public extension SegmentationHandler {
 
     func resetSegmentCounter() {
         segmentCounter = 0
+    }
+
+    func resetSegmentation() {
+        storedPayloads.removeAll()
+        resetSegmentCounter()
     }
 }
