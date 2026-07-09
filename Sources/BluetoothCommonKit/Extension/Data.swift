@@ -113,8 +113,7 @@ public extension Data {
  
  */
 public extension Collection where Element == UInt8 {
-    private var crcCCITT: UInt16 {
-        let seed: UInt16 = 0xffff
+    private func crcCCITT(seed: UInt16) -> UInt16 {
         let polynomial: UInt16 = 0x8408
         let finalXOR: UInt16 = 0
 
@@ -138,8 +137,16 @@ public extension Collection where Element == UInt8 {
         return crc ^ finalXOR
     }
 
+    /// CRC-16 seeded for the Bluetooth Insulin Delivery Service E2E-CRC (seed `0xffff`).
     var crc16: UInt16 {
-        return crcCCITT
+        return crcCCITT(seed: 0xffff)
+    }
+
+    /// CRC-16 with the CCITT-reflected polynomial (`0x8408`) starting from `seed`, for
+    /// profiles that specify an initial value other than the IDS `0xffff` (e.g. a zero
+    /// seed yields CRC-16/KERMIT).
+    func crc16(seed: UInt16) -> UInt16 {
+        return crcCCITT(seed: seed)
     }
 }
 
