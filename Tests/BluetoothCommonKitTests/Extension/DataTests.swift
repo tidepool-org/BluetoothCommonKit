@@ -97,7 +97,24 @@ class DataTests: XCTestCase {
         let crc2 = data2.crc16
         XCTAssertEqual(crc2, expectedCRC2)
     }
-    
+
+    func testCRC16WithSeed() {
+        // the IDS seed (0xffff) matches the crc16 property
+        let data = Data(hex:"3e010203040506070809")
+        XCTAssertEqual(data.crc16(seed: 0xffff), data.crc16)
+        XCTAssertEqual(data.crc16(seed: 0xffff), 0x2f01)
+
+        // standard check input "123456789":
+        // seed 0xffff = CRC-16/MCRF4XX, seed 0 = CRC-16/KERMIT
+        let check = Data("123456789".utf8)
+        XCTAssertEqual(check.crc16(seed: 0xffff), 0x6f91)
+        XCTAssertEqual(check.crc16(seed: 0), 0x2189)
+
+        // empty input returns the seed unchanged
+        XCTAssertEqual(Data().crc16(seed: 0xffff), 0xffff)
+        XCTAssertEqual(Data().crc16(seed: 0), 0)
+    }
+
     func testIsCRCValid() {
         // test vector from Bluetooth Insulin Delivery Service
         // data = [0x3E, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09]
