@@ -751,7 +751,21 @@ extension ACControlPointDataHandler: RequestHandler {
     public func createGetAllActiveDescriptorsRequest() -> Data {
         ACControlPointDataHandler.buildControlPointRequest(opcode: ACControlPointOpcode.getAllActiveDescriptors)
     }
-    
+
+    /// Reads just the key descriptor(s). The response refreshes the session key parameters
+    /// (receivedIVFixedField / sessionKeyID / KDF function) and auto-queues SetClientFixedNonce.
+    public func createGetKeyDescriptorRequest() -> Data {
+        KeyDescriptor.request
+    }
+
+    public func createGetInformationSecurityConfigurationDescriptorRequest() -> Data {
+        InformationSecurityConfigurationDescriptor.request
+    }
+
+    public func createGetRestrictionMapDescriptorRequest() -> Data {
+        RestrictionMapDescriptor.request
+    }
+
     public func createECDHPublicKeyRequest() -> Data? {
         KeyExchangeECDH.ecdhRequestUncompressedPlain(securityManager: securityManager)
     }
@@ -817,6 +831,22 @@ extension ACControlPointDataHandler: RequestHandler {
         appendToRequestQueue(createGetResourceHandleToUUIDMapRequest(), completion: nil)
         appendToRequestQueue(createGetRestrictionMapIDListRequest(), completion: nil)
         appendToRequestQueue(createGetAllActiveDescriptorsRequest(), completion: completion)
+    }
+
+    /// Reads just the key descriptor. The response refreshes the session key parameters
+    /// (receivedIVFixedField / sessionKeyID / KDF function) and auto-queues SetClientFixedNonce —
+    /// used to re-sync session parameters (e.g. during session re-establishment) without the extra
+    /// round-trips of a full `queueConfigurationRequests`.
+    public func queueGetKeyDescriptorRequest(completion: ProcedureResultCompletion? = nil) {
+        appendToRequestQueue(createGetKeyDescriptorRequest(), completion: completion)
+    }
+
+    public func queueGetInformationSecurityConfigurationDescriptorRequest(completion: ProcedureResultCompletion? = nil) {
+        appendToRequestQueue(createGetInformationSecurityConfigurationDescriptorRequest(), completion: completion)
+    }
+
+    public func queueGetRestrictionMapDescriptorRequest(completion: ProcedureResultCompletion? = nil) {
+        appendToRequestQueue(createGetRestrictionMapDescriptorRequest(), completion: completion)
     }
 
     func didQueueECDHConfirmationCodeRequest(completion: ProcedureResultCompletion? = nil) -> Bool {
