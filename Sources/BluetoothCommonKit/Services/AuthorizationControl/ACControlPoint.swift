@@ -759,11 +759,11 @@ extension ACControlPointDataHandler: RequestHandler {
     }
 
     public func createGetInformationSecurityConfigurationDescriptorRequest() -> Data {
-        InformationSecurityConfigurationDescriptor.request
+        InformationSecurityConfigurationDescriptor.request()
     }
 
     public func createGetRestrictionMapDescriptorRequest() -> Data {
-        RestrictionMapDescriptor.request
+        RestrictionMapDescriptor.request()
     }
 
     public func createECDHPublicKeyRequest() -> Data? {
