@@ -755,7 +755,7 @@ extension ACControlPointDataHandler: RequestHandler {
     /// Reads just the key descriptor(s). The response refreshes the session key parameters
     /// (receivedIVFixedField / sessionKeyID / KDF function) and auto-queues SetClientFixedNonce.
     public func createGetKeyDescriptorRequest() -> Data {
-        KeyDescriptor.request
+        KeyDescriptor.request()
     }
 
     public func createGetInformationSecurityConfigurationDescriptorRequest() -> Data {
