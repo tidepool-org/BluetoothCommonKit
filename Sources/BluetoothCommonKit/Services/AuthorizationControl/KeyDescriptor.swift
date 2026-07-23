@@ -17,8 +17,14 @@ struct KeyDescriptor: RequestHandler {
     static let nonceHeaderSizeMin = 3
     static let kdfRecordHeaderSize = 3
     
-    static var request: Data {
-        return KeyDescriptor.buildControlPointRequest(opcode: ACControlPointOpcode.getKeyDescriptor)
+    /// KeyID filter that matches all active key descriptors — the same value
+    /// `getAllActiveDescriptors` uses internally.
+    static let noFilter: KeyID = 0xffff
+
+    /// `getKeyDescriptor` requires a 2-byte KeyID filter operand; the pump rejects an operand-less
+    /// request with `invalidOperand`. Defaults to `noFilter` to return all active key descriptors.
+    static func request(filter: KeyID = noFilter) -> Data {
+        return KeyDescriptor.buildControlPointRequest(opcode: ACControlPointOpcode.getKeyDescriptor, operand: Data(filter))
     }
     
     static func handleResponse(_ response: Data, securityManager: SecurityManager) -> DeviceCommResult<Any?> {
