@@ -12,8 +12,15 @@ struct InformationSecurityConfigurationDescriptor: RequestHandler {
     static let recordHeaderSize = 4
     static let keyIDSize = 2
 
-    static var request: Data {
-        return InformationSecurityConfigurationDescriptor.buildControlPointRequest(opcode: ACControlPointOpcode.getInformationSecurityConfigurationDescriptor)
+    /// SecurityConfigurationID filter that matches all active security configurations — the same
+    /// value `getAllActiveDescriptors` uses internally.
+    static let noFilter: SecurityConfigurationID = 0xffff
+
+    /// `getInformationSecurityConfigurationDescriptor` requires a 2-byte SecurityConfigurationID
+    /// filter operand; the pump rejects an operand-less request with `invalidOperand`. Defaults to
+    /// `noFilter` to return all active security configurations.
+    static func request(filter: SecurityConfigurationID = noFilter) -> Data {
+        return InformationSecurityConfigurationDescriptor.buildControlPointRequest(opcode: ACControlPointOpcode.getInformationSecurityConfigurationDescriptor, operand: Data(filter))
     }
     
     static func handleResponse(_ response: Data, securityManager: SecurityManager) -> DeviceCommResult<Any?> {

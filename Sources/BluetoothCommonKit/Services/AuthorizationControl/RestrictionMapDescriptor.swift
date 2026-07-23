@@ -25,8 +25,22 @@ struct RestrictionMapDescriptor: RequestHandler {
     static let recordHeaderSize = 4
     static let mappingHeaderSize = 4
 
-    static var request: Data {
-        return RestrictionMapDescriptor.buildControlPointRequest(opcode: ACControlPointOpcode.getRestrictionMapDescriptor)
+    /// The only restriction map ID the pump supports (spec); other values are rejected with
+    /// `parameterOutOfRange`.
+    static let defaultRestrictionMapID: RestrictionMapID = 1
+
+    /// ResourceHandle filter that matches all handles — the same value `getAllActiveDescriptors`
+    /// uses internally.
+    static let noHandleFilter: ResourceHandle = 0xffff
+
+    /// `getRestrictionMapDescriptor` requires a restriction map ID (2 bytes, must be
+    /// `defaultRestrictionMapID`) followed by a 2-byte ResourceHandle filter; the pump rejects a
+    /// malformed request with `invalidOperand`. Defaults to the supported map ID and `noHandleFilter`.
+    static func request(restrictionMapID: RestrictionMapID = defaultRestrictionMapID,
+                        handleFilter: ResourceHandle = noHandleFilter) -> Data {
+        var operand = Data(restrictionMapID)
+        operand.append(Data(handleFilter))
+        return RestrictionMapDescriptor.buildControlPointRequest(opcode: ACControlPointOpcode.getRestrictionMapDescriptor, operand: operand)
     }
     
     static func handleResponse(_ response: Data) -> DeviceCommResult<Any?> {
