@@ -53,8 +53,12 @@ class KeyDescriptorTests: XCTestCase {
     }
     
     func testGetKeyDescriptorRequest() {
-        let request = KeyDescriptor.request
-        XCTAssertEqual(request, Data([ACControlPointOpcode.getKeyDescriptor.rawValue]))
+        // `request` gained a key-ID filter operand (#22): opcode followed by the
+        // match-all filter.
+        let request = KeyDescriptor.request()
+        var expected = Data([ACControlPointOpcode.getKeyDescriptor.rawValue])
+        expected.append(Data(KeyDescriptor.noFilter))
+        XCTAssertEqual(request, expected)
     }
     
     func testKeyDescriptorResponse() {
