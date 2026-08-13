@@ -117,7 +117,7 @@ class ACDataTests: XCTestCase {
         let acData = ACDataDataHandler(securityManager: securityManager, maxRequestSize: 19)
         let segmentationHeader = SegmentationHeader(rawValue: 0b00010111)
         var response = Data(segmentationHeader.rawValue)
-        response.append(0x01020304)
+        response.append(Data(hexadecimalString: "02030405060708090a0b0c0d0f10111213141516171819")!)
         let result = acData.handleSecureResponse(response)
         switch result {
         case .success(_):

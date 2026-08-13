@@ -28,8 +28,12 @@ class InformationSecurityConfigurationDescriptorTests: XCTestCase {
     }
     
     func testGetInformationSecurityConfigurationDescriptorRequest() {
-        let request = InformationSecurityConfigurationDescriptor.request
-        XCTAssertEqual(request, Data([ACControlPointOpcode.getInformationSecurityConfigurationDescriptor.rawValue]))
+        // `request` gained a security-configuration-ID filter operand (#22): opcode
+        // followed by the match-all filter.
+        let request = InformationSecurityConfigurationDescriptor.request()
+        var expected = Data([ACControlPointOpcode.getInformationSecurityConfigurationDescriptor.rawValue])
+        expected.append(Data(InformationSecurityConfigurationDescriptor.noFilter))
+        XCTAssertEqual(request, expected)
     }
     
     func testInformationSecurityConfigurationDescriptorResponse() {

@@ -14,21 +14,16 @@ final class BatteryLevelStatusTests: XCTestCase {
     // MARK: - Parsing
 
     func testMinimalParse() {
-        // Flags: no optional fields, Power State: battery present + discharging active + good level
+        // Power State subfields (spec bit positions):
+        //   bit 0    : BatteryPresent           = yes (1)
+        //   bits 1-2 : WiredExternal            = no (0)
+        //   bits 3-4 : WirelessExternal         = no (0)
+        //   bits 5-6 : ChargeState              = dischargingActive (2)
+        //   bits 7-8 : ChargeLevel              = good (1)
+        //   bits 9-11: ChargingType             = unknownOrNotCharging (0)
+        let powerStateValue: UInt16 = (1 << 0) | (2 << 5) | (1 << 7)
         var data = Data()
         data.append(UInt8(0x00)) // flags: no optional fields
-        data.append(UInt16(0x0109)) // power state: battery present (01), discharging active (10 at bits 6-7 = 0x80), good level (01 at bits 8-9 = 0x100) → 0x0109 = 0b0000_0001_0000_1001
-        // Actually let me construct this more carefully:
-        // Bits 0-1: BatteryPresent = yes (1)
-        // Bits 2-3: WiredExternal = no (0)
-        // Bits 4-5: WirelessExternal = no (0)
-        // Bits 6-7: ChargeState = dischargingActive (2)
-        // Bits 8-9: ChargeLevel = good (1)
-        // Bits 10-11: ChargingType = unknownOrNotCharging (0)
-        // = 0b00_01_10_00_00_01 = 0x0081
-        let powerStateValue: UInt16 = (1 << 0) | (2 << 6) | (1 << 8) // 0x0181
-        data = Data()
-        data.append(UInt8(0x00))
         data.append(powerStateValue)
 
         let status = BatteryLevelStatus(data: data)
@@ -47,12 +42,12 @@ final class BatteryLevelStatusTests: XCTestCase {
     }
 
     func testParseWithAllOptionalFields() {
-        // Bits 0-1: BatteryPresent = yes (1)
-        // Bits 2-3: WiredExternal = yes (1)
-        // Bits 6-7: ChargeState = charging (1)
-        // Bits 8-9: ChargeLevel = good (1)
-        // Bits 10-11: ChargingType = constantCurrent (1)
-        let powerStateValue: UInt16 = (1 << 0) | (1 << 2) | (1 << 6) | (1 << 8) | (1 << 10)
+        // bit 0    : BatteryPresent = yes (1)
+        // bits 1-2 : WiredExternal  = yes (1)
+        // bits 5-6 : ChargeState    = charging (1)
+        // bits 7-8 : ChargeLevel    = good (1)
+        // bits 9-11: ChargingType   = constantCurrent (1)
+        let powerStateValue: UInt16 = (1 << 0) | (1 << 1) | (1 << 5) | (1 << 7) | (1 << 9)
 
         var data = Data()
         data.append(UInt8(0x07)) // flags: all three optional fields present
@@ -185,8 +180,8 @@ final class BatteryLevelStatusTests: XCTestCase {
     }
 
     func testWirelessExternalPower() {
-        // Bits 4-5: WirelessExternal = yes (1)
-        let powerStateValue: UInt16 = (1 << 0) | (1 << 4)
+        // bits 3-4: WirelessExternal = yes (1)
+        let powerStateValue: UInt16 = (1 << 0) | (1 << 3)
         var data = Data()
         data.append(UInt8(0x00))
         data.append(powerStateValue)
@@ -197,8 +192,8 @@ final class BatteryLevelStatusTests: XCTestCase {
     }
 
     func testChargeLevelCritical() {
-        // Bits 8-9: ChargeLevel = critical (3)
-        let powerStateValue: UInt16 = (1 << 0) | (3 << 8)
+        // bits 7-8: ChargeLevel = critical (3)
+        let powerStateValue: UInt16 = (1 << 0) | (3 << 7)
         var data = Data()
         data.append(UInt8(0x00))
         data.append(powerStateValue)
@@ -209,8 +204,8 @@ final class BatteryLevelStatusTests: XCTestCase {
     }
 
     func testChargingTypeTrickle() {
-        // Bits 10-11: ChargingType = trickle (3)
-        let powerStateValue: UInt16 = (1 << 0) | (1 << 6) | (3 << 10)
+        // bits 5-6: ChargeState = charging (1); bits 9-11: ChargingType = trickle (3)
+        let powerStateValue: UInt16 = (1 << 0) | (1 << 5) | (3 << 9)
         var data = Data()
         data.append(UInt8(0x00))
         data.append(powerStateValue)
@@ -221,8 +216,8 @@ final class BatteryLevelStatusTests: XCTestCase {
     }
 
     func testChargeStateDischargingInactive() {
-        // Bits 6-7: ChargeState = dischargingInactive (3)
-        let powerStateValue: UInt16 = (1 << 0) | (3 << 6)
+        // bits 5-6: ChargeState = dischargingInactive (3)
+        let powerStateValue: UInt16 = (1 << 0) | (3 << 5)
         var data = Data()
         data.append(UInt8(0x00))
         data.append(powerStateValue)
@@ -231,6 +226,53 @@ final class BatteryLevelStatusTests: XCTestCase {
         XCTAssertNotNil(status)
         XCTAssertEqual(status?.powerState.chargeState, .dischargingInactive)
         XCTAssertFalse(status?.powerState.isCharging ?? true)
+    }
+
+    // MARK: - Power State Subfield Layout (spec bit positions)
+
+    /// Packs every Power State subfield with a distinct value at its spec bit position and
+    /// reads each back. A shift error in any field bleeds into a neighbour and fails here —
+    /// the regression that guards the Battery Charge Level off-by-one (bits 7-8, not 8-9).
+    func testPowerStateSubfieldsIsolatedByBitPosition() {
+        let powerStateValue: UInt16 =
+            (1 << 0) |   // bit 0    : BatteryPresent          = yes (1)
+            (2 << 1) |   // bits 1-2 : WiredExternal           = unknown (2)
+            (1 << 3) |   // bits 3-4 : WirelessExternal        = yes (1)
+            (1 << 5) |   // bits 5-6 : ChargeState             = charging (1)
+            (2 << 7) |   // bits 7-8 : ChargeLevel             = low (2)
+            (3 << 9) |   // bits 9-11: ChargingType            = trickle (3)
+            (1 << 12) |  // bit 12   : ChargingFaultReasonBattery
+            (1 << 13)    // bit 13   : ChargingFaultReasonExternalPower
+        var data = Data()
+        data.append(UInt8(0x00))
+        data.append(powerStateValue)
+
+        let status = BatteryLevelStatus(data: data)
+        XCTAssertNotNil(status)
+        XCTAssertEqual(status?.powerState.batteryPresent, .yes)
+        XCTAssertEqual(status?.powerState.wiredExternalPowerConnected, .unknown)
+        XCTAssertEqual(status?.powerState.wirelessExternalPowerConnected, .yes)
+        XCTAssertEqual(status?.powerState.chargeState, .charging)
+        XCTAssertEqual(status?.powerState.chargeLevel, .low)
+        XCTAssertEqual(status?.powerState.chargingType, .trickle)
+        XCTAssertTrue(status?.powerState.chargingFaultReasonBattery ?? false)
+        XCTAssertTrue(status?.powerState.chargingFaultReasonExternalPower ?? false)
+        XCTAssertFalse(status?.powerState.chargingFaultReasonOther ?? true)
+    }
+
+    /// A Good charge level (bits 7-8 = 1) alongside a non-zero Charging Type must not be
+    /// misread — the earlier bits-8-9 decode returned Unknown here, defeating the
+    /// readiness signal (and could read Critical as Good).
+    func testChargeLevelGoodNotBledFromChargingType() {
+        // bits 7-8: ChargeLevel = good (1); bits 9-11: ChargingType = constantVoltage (2)
+        let powerStateValue: UInt16 = (1 << 0) | (1 << 7) | (2 << 9)
+        var data = Data()
+        data.append(UInt8(0x00))
+        data.append(powerStateValue)
+
+        let status = BatteryLevelStatus(data: data)
+        XCTAssertEqual(status?.powerState.chargeLevel, .good)
+        XCTAssertEqual(status?.powerState.chargingType, .constantVoltage)
     }
 
     // MARK: - Characteristic UUID

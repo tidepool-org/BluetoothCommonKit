@@ -43,27 +43,27 @@ public struct BatteryLevelStatus {
         }
 
         public var batteryPresent: BatteryPresent {
-            BatteryPresent(rawValue: UInt8(rawValue & 0x03)) ?? .unknown
+            BatteryPresent(rawValue: UInt8(rawValue & 0x01)) ?? .unknown
         }
 
         public var wiredExternalPowerConnected: ExternalPowerState {
-            ExternalPowerState(rawValue: UInt8((rawValue >> 2) & 0x03)) ?? .unknown
+            ExternalPowerState(rawValue: UInt8((rawValue >> 1) & 0x03)) ?? .unknown
         }
 
         public var wirelessExternalPowerConnected: ExternalPowerState {
-            ExternalPowerState(rawValue: UInt8((rawValue >> 4) & 0x03)) ?? .unknown
+            ExternalPowerState(rawValue: UInt8((rawValue >> 3) & 0x03)) ?? .unknown
         }
 
         public var chargeState: ChargeState {
-            ChargeState(rawValue: UInt8((rawValue >> 6) & 0x03)) ?? .unknown
+            ChargeState(rawValue: UInt8((rawValue >> 5) & 0x03)) ?? .unknown
         }
 
         public var chargeLevel: ChargeLevel {
-            ChargeLevel(rawValue: UInt8((rawValue >> 8) & 0x03)) ?? .unknown
+            ChargeLevel(rawValue: UInt8((rawValue >> 7) & 0x03)) ?? .unknown
         }
 
         public var chargingType: ChargingType {
-            ChargingType(rawValue: UInt8((rawValue >> 10) & 0x03)) ?? .unknownOrNotCharging
+            ChargingType(rawValue: UInt8((rawValue >> 9) & 0x07)) ?? .unknownOrNotCharging
         }
 
         public var chargingFaultReasonBattery: Bool {
@@ -118,6 +118,7 @@ public struct BatteryLevelStatus {
         case constantCurrent      = 1
         case constantVoltage      = 2
         case trickle              = 3
+        case float                = 4
     }
 
     // MARK: - Additional Status

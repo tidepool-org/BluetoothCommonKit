@@ -20,8 +20,13 @@ class RestrictionMapDescriptorTests: XCTestCase {
     }
     
     func testGetRestrictionMapDescriptorRequest() {
-        let request = RestrictionMapDescriptor.request
-        XCTAssertEqual(request, Data([ACControlPointOpcode.getRestrictionMapDescriptor.rawValue]))
+        // `request` gained a restriction-map-ID + handle-filter operand (#22): opcode
+        // followed by the default map ID and the match-all handle filter.
+        let request = RestrictionMapDescriptor.request()
+        var expected = Data([ACControlPointOpcode.getRestrictionMapDescriptor.rawValue])
+        expected.append(Data(RestrictionMapDescriptor.defaultRestrictionMapID))
+        expected.append(Data(RestrictionMapDescriptor.noHandleFilter))
+        XCTAssertEqual(request, expected)
     }
     
     func testRestrictionMapDescriptorResponse() {
