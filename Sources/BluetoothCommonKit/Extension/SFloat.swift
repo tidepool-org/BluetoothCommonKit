@@ -75,17 +75,105 @@ public enum SFloatSpecialValue: SFLOAT {
     case nRes = 0x0800 // not at this resolution
     case rfu = 0x0801 // reserved for future use
     case infinityNegative = 0x0802
-    
+
     static var maxValuePositive: Double {
         return 20470000000
     }
-    
+
     static var maxValueNegative: Double {
         return -20480000000
     }
-    
+
     static var minResolution: Double {
         return 1e-8
+    }
+}
+
+/// IEEE 11073-20601 SFLOAT codec: 4-bit signed base-10 exponent, 12-bit signed mantissa.
+///
+/// `encode` is the canonical form shared by the GATT health services: integral values use exponent 0
+/// (100 mg/dL -> 0x0064) and fractional values keep as much precision as the mantissa allows.
+/// `Double.sfloat` / `FixedWidthInteger.toSFloat` remain for the Insulin Delivery Service's established
+/// 1e-8-shifted encoding; both decode identically through `decode`.
+public enum SFloat {
+    private static let mantissaRange = -2048...2047
+    private static let exponentRange = -8...7
+
+    public static func encode(_ value: Double) -> SFLOAT {
+        if value.isNaN { return SFloatSpecialValue.nan.rawValue }
+        if value == .infinity { return SFloatSpecialValue.infinityPostive.rawValue }
+        if value == -.infinity { return SFloatSpecialValue.infinityNegative.rawValue }
+
+        var exponent = 0
+        var mantissa = value
+
+        // Gain fractional precision while the mantissa still fits.
+        while exponent > exponentRange.lowerBound,
+              !isIntegral(mantissa),
+              abs(mantissa * 10) <= Double(mantissaRange.upperBound)
+        {
+            mantissa *= 10
+            exponent -= 1
+        }
+
+        // Shed magnitude until the mantissa fits.
+        while exponent < exponentRange.upperBound,
+              !mantissaRange.contains(Int(mantissa.rounded()))
+        {
+            mantissa /= 10
+            exponent += 1
+        }
+
+        var rounded = Int(mantissa.rounded())
+        guard mantissaRange.contains(rounded) else {
+            return value > 0 ? SFloatSpecialValue.infinityPostive.rawValue : SFloatSpecialValue.infinityNegative.rawValue
+        }
+
+        // Exponent 0 with mantissa 0x7FE...0x802 collides with the special values; step up one decade.
+        if exponent == 0, rounded >= 2046 || rounded <= -2046 {
+            rounded = Int((Double(rounded) / 10).rounded())
+            exponent = 1
+        }
+
+        let exponentBits = SFLOAT(truncatingIfNeeded: exponent) & 0x000f
+        let mantissaBits = SFLOAT(truncatingIfNeeded: rounded) & 0x0fff
+        return exponentBits << 12 | mantissaBits
+    }
+
+    public static func decode(_ raw: SFLOAT) -> Double {
+        switch raw {
+        case SFloatSpecialValue.nan.rawValue, SFloatSpecialValue.nRes.rawValue, SFloatSpecialValue.rfu.rawValue:
+            return .nan
+        case SFloatSpecialValue.infinityPostive.rawValue:
+            return .infinity
+        case SFloatSpecialValue.infinityNegative.rawValue:
+            return -.infinity
+        default:
+            break
+        }
+
+        var exponent = Int(raw >> 12)
+        if exponent >= 8 { exponent -= 16 }
+
+        var mantissa = Int(raw & 0x0fff)
+        if mantissa >= 2048 { mantissa -= 4096 }
+
+        // Divide for negative exponents: 3 / 10 is exactly 0.3, while 3 * 0.1 is not.
+        if exponent < 0 {
+            return Double(mantissa) / pow(10, Double(-exponent))
+        }
+        return Double(mantissa) * pow(10, Double(exponent))
+    }
+
+    private static func isIntegral(_ value: Double) -> Bool {
+        abs(value - value.rounded()) <= 1e-9 * max(1, abs(value))
+    }
+}
+
+public extension Data {
+    /// Appends `value` as a canonical little-endian SFLOAT (see `SFloat.encode`).
+    mutating func appendSFloat(_ value: Double) {
+        append(SFloat.encode(value))
     }
 }
 
@@ -117,42 +205,7 @@ public extension Data {
         guard self.count == 2 else {
             fatalError("SFloat is a 16-bit value: \(self.toHexString())")
         }
-        
-        guard self != Data(SFloatSpecialValue.rfu.rawValue) else {
-            return Double.nan
-        }
-        
-        guard self != Data(SFloatSpecialValue.nan.rawValue),
-            self != Data(SFloatSpecialValue.nRes.rawValue) else
-        {
-            return Double.nan
-        }
-        
-        guard self != Data(SFloatSpecialValue.infinityPostive.rawValue) else {
-            return Double.infinity
-        }
-        
-        guard self != Data(SFloatSpecialValue.infinityNegative.rawValue) else {
-            return -1*Double.infinity
-        }
-        
-        let number = self[startIndex...].to(SFLOAT.self)
-        var exponent = Int((number & 0xf000) >> 12)
-        if exponent >= 8 {
-            // exponent is signed and should be negative
-            exponent -= 16
-        }
-        
-        var mantissa = Int(number & 0x0fff)
-        if (mantissa >= 2048) {
-            // mantissa is signed and should be negative
-            mantissa -= 4096
-        }
-        
-        if exponent < 0 {
-            return Double(mantissa) / pow(10, Double(-exponent))
-        } else {
-            return Double(mantissa) * pow(10, Double(exponent))
-        }
+
+        return SFloat.decode(self[startIndex...].to(SFLOAT.self))
     }
 }
