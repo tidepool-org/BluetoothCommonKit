@@ -187,6 +187,98 @@ class SFloatTests: XCTestCase {
     }
 }
 
+// MARK: - Canonical codec (SFloat.encode / decode)
+
+extension SFloatTests {
+    func testCanonicalEncodePrefersExponentZeroForIntegers() {
+        XCTAssertEqual(SFloat.encode(100), 0x0064)
+        XCTAssertEqual(SFloat.encode(95), 0x005f)
+        XCTAssertEqual(SFloat.encode(400), 0x0190)
+        XCTAssertEqual(SFloat.encode(0), 0x0000)
+    }
+
+    func testCanonicalEncodeKeepsFractionalPrecision() {
+        XCTAssertEqual(SFloat.encode(120.5), 0xf4b5)   // 1205 e-1
+        XCTAssertEqual(SFloat.encode(-1.25), 0xef83)   // -125 e-2
+        XCTAssertEqual(SFloat.encode(0.3), 0xf003)     // 3 e-1
+    }
+
+    func testCanonicalSpecialValues() {
+        XCTAssertEqual(SFloat.encode(.nan), SFloatSpecialValue.nan.rawValue)
+        XCTAssertEqual(SFloat.encode(.infinity), SFloatSpecialValue.infinityPostive.rawValue)
+        XCTAssertEqual(SFloat.encode(-.infinity), SFloatSpecialValue.infinityNegative.rawValue)
+        XCTAssertEqual(SFloat.encode(1e12), SFloatSpecialValue.infinityPostive.rawValue)
+        XCTAssertEqual(SFloat.encode(-1e12), SFloatSpecialValue.infinityNegative.rawValue)
+        XCTAssertTrue(SFloat.decode(SFloatSpecialValue.nan.rawValue).isNaN)
+        XCTAssertTrue(SFloat.decode(SFloatSpecialValue.nRes.rawValue).isNaN)
+        XCTAssertTrue(SFloat.decode(SFloatSpecialValue.rfu.rawValue).isNaN)
+        XCTAssertEqual(SFloat.decode(SFloatSpecialValue.infinityPostive.rawValue), .infinity)
+        XCTAssertEqual(SFloat.decode(SFloatSpecialValue.infinityNegative.rawValue), -.infinity)
+    }
+
+    func testCanonicalEncodeAvoidsReservedMantissaAtExponentZero() {
+        for value in [2046.0, 2047.0, -2046.0, -2047.0, -2048.0] {
+            let raw = SFloat.encode(value)
+            XCTAssertNil(SFloatSpecialValue(rawValue: raw), "\(value) must not encode to a special value")
+            XCTAssertEqual(SFloat.decode(raw), value, accuracy: 5)
+        }
+    }
+
+    func testCanonicalRoundTripIsExactForFractions() {
+        // Values whose decimal mantissa has no exact binary form still round-trip exactly thanks to division.
+        for value in [0.3, 0.6, 0.7, 2.3, 1.1, 0.05, 123.4, -0.3] {
+            XCTAssertEqual(SFloat.decode(SFloat.encode(value)), value)
+        }
+    }
+
+    /// The 12-bit mantissa tops out at 2047, so a value keeps three or four significant digits depending on its
+    /// leading digits (204.8 must become 205e0, not 2048e-1). The precision of each encoding is therefore one unit
+    /// in the last place of the exponent it actually chose: the canonical encoder rounds (error at most half a unit)
+    /// and the legacy encoder truncates (error under one unit).
+    func testCanonicalEncodeStaysWithinMantissaPrecision() {
+        for thousandths in stride(from: -300000, through: 300000, by: 7) {
+            let value = Double(thousandths) / 1000
+            let canonicalRaw = SFloat.encode(value)
+            let legacyRaw = value.sfloat.to(SFLOAT.self)
+            let canonical = SFloat.decode(canonicalRaw)
+            let legacy = SFloat.decode(legacyRaw)
+            let canonicalUnit = pow(10, Double(exponent(of: canonicalRaw)))
+            let legacyUnit = pow(10, Double(exponent(of: legacyRaw)))
+            XCTAssertEqual(canonical, value, accuracy: 0.5 * canonicalUnit + 1e-9, "canonical \(value)")
+            XCTAssertEqual(legacy, value, accuracy: legacyUnit + 1e-9, "legacy \(value)")
+            XCTAssertEqual(canonical, legacy, accuracy: 0.5 * canonicalUnit + legacyUnit + 1e-9, "legacy vs canonical \(value)")
+        }
+    }
+
+    /// Every finite SFLOAT code must survive decode -> encode -> decode unchanged.
+    func testCanonicalRoundTripsEveryCode() {
+        for raw in SFLOAT.min...SFLOAT.max {
+            let value = SFloat.decode(raw)
+            guard value.isFinite else { continue }
+            XCTAssertEqual(SFloat.decode(SFloat.encode(value)), value, String(format: "0x%04X", raw))
+        }
+    }
+
+    func testCanonicalEncodeHandlesMagnitudesBeyondInt() {
+        XCTAssertEqual(SFloat.encode(1e300), SFloatSpecialValue.infinityPostive.rawValue)
+        XCTAssertEqual(SFloat.encode(-1e300), SFloatSpecialValue.infinityNegative.rawValue)
+        XCTAssertEqual(SFloat.encode(.greatestFiniteMagnitude), SFloatSpecialValue.infinityPostive.rawValue)
+        XCTAssertEqual(SFloat.encode(-.greatestFiniteMagnitude), SFloatSpecialValue.infinityNegative.rawValue)
+    }
+
+    func testCanonicalEncodeUsesFullMantissaRangeAtNegativeExponents() {
+        XCTAssertEqual(SFloat.encode(-204.8), 0xf800)  // -2048 e-1; 0x800 is only reserved at exponent 0
+        XCTAssertEqual(SFloat.encode(2.047), 0xd7ff)   // 2047 e-3
+        XCTAssertEqual(SFloat.encode(204.7), 0xf7ff)   // 2047 e-1
+    }
+
+    func testAppendSFloat() {
+        var data = Data()
+        data.appendSFloat(120.5)
+        XCTAssertEqual(data, Data([0xb5, 0xf4]))
+    }
+}
+
 extension SFloatTests {
     private func extractMantissa(_ sfloat: UInt16) -> Int {
         var mantissa = Int(sfloat & 0x0fff)
@@ -194,5 +286,14 @@ extension SFloatTests {
             mantissa -= 0x1000
         }
         return mantissa
+    }
+
+    /// The signed 4-bit base-10 exponent stored in the top nibble.
+    private func exponent(of sfloat: SFLOAT) -> Int {
+        var exponent = Int(sfloat >> 12)
+        if exponent >= 8 {
+            exponent -= 16
+        }
+        return exponent
     }
 }
