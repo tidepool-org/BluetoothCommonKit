@@ -231,17 +231,45 @@ extension SFloatTests {
         }
     }
 
-    /// Both encoders keep four significant digits; the legacy one truncates the mantissa, the canonical one
-    /// rounds, so they can differ by one unit in the last place but never more.
+    /// The 12-bit mantissa tops out at 2047, so a value keeps three or four significant digits depending on its
+    /// leading digits (204.8 must become 205e0, not 2048e-1). The precision of each encoding is therefore one unit
+    /// in the last place of the exponent it actually chose: the canonical encoder rounds (error at most half a unit)
+    /// and the legacy encoder truncates (error under one unit).
     func testCanonicalEncodeStaysWithinMantissaPrecision() {
         for thousandths in stride(from: -300000, through: 300000, by: 7) {
             let value = Double(thousandths) / 1000
-            let canonical = SFloat.decode(SFloat.encode(value))
-            let legacy = value.sfloat.sfloatToDouble()
-            let halfUnitInLastPlace = abs(value) * 5e-4 + 1e-12
-            XCTAssertEqual(canonical, value, accuracy: halfUnitInLastPlace, "canonical \(value)")
-            XCTAssertEqual(canonical, legacy, accuracy: 2 * halfUnitInLastPlace, "legacy vs canonical \(value)")
+            let canonicalRaw = SFloat.encode(value)
+            let legacyRaw = value.sfloat.to(SFLOAT.self)
+            let canonical = SFloat.decode(canonicalRaw)
+            let legacy = SFloat.decode(legacyRaw)
+            let canonicalUnit = pow(10, Double(exponent(of: canonicalRaw)))
+            let legacyUnit = pow(10, Double(exponent(of: legacyRaw)))
+            XCTAssertEqual(canonical, value, accuracy: 0.5 * canonicalUnit + 1e-9, "canonical \(value)")
+            XCTAssertEqual(legacy, value, accuracy: legacyUnit + 1e-9, "legacy \(value)")
+            XCTAssertEqual(canonical, legacy, accuracy: 0.5 * canonicalUnit + legacyUnit + 1e-9, "legacy vs canonical \(value)")
         }
+    }
+
+    /// Every finite SFLOAT code must survive decode -> encode -> decode unchanged.
+    func testCanonicalRoundTripsEveryCode() {
+        for raw in SFLOAT.min...SFLOAT.max {
+            let value = SFloat.decode(raw)
+            guard value.isFinite else { continue }
+            XCTAssertEqual(SFloat.decode(SFloat.encode(value)), value, String(format: "0x%04X", raw))
+        }
+    }
+
+    func testCanonicalEncodeHandlesMagnitudesBeyondInt() {
+        XCTAssertEqual(SFloat.encode(1e300), SFloatSpecialValue.infinityPostive.rawValue)
+        XCTAssertEqual(SFloat.encode(-1e300), SFloatSpecialValue.infinityNegative.rawValue)
+        XCTAssertEqual(SFloat.encode(.greatestFiniteMagnitude), SFloatSpecialValue.infinityPostive.rawValue)
+        XCTAssertEqual(SFloat.encode(-.greatestFiniteMagnitude), SFloatSpecialValue.infinityNegative.rawValue)
+    }
+
+    func testCanonicalEncodeUsesFullMantissaRangeAtNegativeExponents() {
+        XCTAssertEqual(SFloat.encode(-204.8), 0xf800)  // -2048 e-1; 0x800 is only reserved at exponent 0
+        XCTAssertEqual(SFloat.encode(2.047), 0xd7ff)   // 2047 e-3
+        XCTAssertEqual(SFloat.encode(204.7), 0xf7ff)   // 2047 e-1
     }
 
     func testAppendSFloat() {
@@ -258,5 +286,14 @@ extension SFloatTests {
             mantissa -= 0x1000
         }
         return mantissa
+    }
+
+    /// The signed 4-bit base-10 exponent stored in the top nibble.
+    private func exponent(of sfloat: SFLOAT) -> Int {
+        var exponent = Int(sfloat >> 12)
+        if exponent >= 8 {
+            exponent -= 16
+        }
+        return exponent
     }
 }

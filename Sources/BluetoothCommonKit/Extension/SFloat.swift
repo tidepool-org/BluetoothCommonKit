@@ -107,27 +107,31 @@ public enum SFloat {
         var exponent = 0
         var mantissa = value
 
-        // Gain fractional precision while the mantissa still fits.
+        // Gain fractional precision while the rounded mantissa still fits. Checking the rounded value (rather
+        // than the raw product) lets e.g. -204.8 become -2048e-1 and keeps 2.047 from losing a digit to
+        // floating-point noise in the product.
         while exponent > exponentRange.lowerBound,
               !isIntegral(mantissa),
-              abs(mantissa * 10) <= Double(mantissaRange.upperBound)
+              fitsMantissa((mantissa * 10).rounded())
         {
             mantissa *= 10
             exponent -= 1
         }
 
-        // Shed magnitude until the mantissa fits.
+        // Shed magnitude until the rounded mantissa fits.
         while exponent < exponentRange.upperBound,
-              !mantissaRange.contains(Int(mantissa.rounded()))
+              !fitsMantissa(mantissa.rounded())
         {
             mantissa /= 10
             exponent += 1
         }
 
-        var rounded = Int(mantissa.rounded())
-        guard mantissaRange.contains(rounded) else {
+        // Range-check as a Double before converting: Int(_:) traps on values beyond Int's range (e.g. 1e300).
+        let roundedMantissa = mantissa.rounded()
+        guard fitsMantissa(roundedMantissa) else {
             return value > 0 ? SFloatSpecialValue.infinityPostive.rawValue : SFloatSpecialValue.infinityNegative.rawValue
         }
+        var rounded = Int(roundedMantissa)
 
         // Exponent 0 with mantissa 0x7FE...0x802 collides with the special values; step up one decade.
         if exponent == 0, rounded >= 2046 || rounded <= -2046 {
@@ -167,6 +171,11 @@ public enum SFloat {
 
     private static func isIntegral(_ value: Double) -> Bool {
         abs(value - value.rounded()) <= 1e-9 * max(1, abs(value))
+    }
+
+    /// Whether `mantissa` lies within the 12-bit signed range, compared as a Double so any finite value is safe.
+    private static func fitsMantissa(_ mantissa: Double) -> Bool {
+        mantissa >= Double(mantissaRange.lowerBound) && mantissa <= Double(mantissaRange.upperBound)
     }
 }
 
