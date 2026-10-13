@@ -296,20 +296,26 @@ public class ACControlPointCharacteristic: WritableCharacteristic, SegmentationH
                 let (_, validated) = self.securityManager.calculateKeyConfirmationReceivedLittleEndian(clientRandomNumberLittleEndian: confirmationRandomNumber)
 
                 guard validated else {
+                    // The OOB numbers differ: the shared secret from the ECDH step must not survive.
+                    securityManager.deleteStoredKey()
                     respond(to: .keyExchangeECDHConfirmationRandomNumber, with: .invalidKeyExchangeConfirmationCode)
                     break
                 }
-                
+
                 var response = Data(ACControlPointOpcode.keyExchangeECDHConfirmationRandomNumberResponse.rawValue)
                 response.append(keyID)
                 response.append(contentsOf: securityManager.generatedRandomNumberData.reversed())
                 sendResponse(response)
-                
+
                 // send key exchange successful response
                 response = Data(ACControlPointOpcode.keyExchangeResponse.rawValue)
                 response.append(keyID)
                 response.append(KeyExchangeResponseCode.successful.rawValue)
                 sendResponse(response)
+
+                // Server-side counterpart of KeyExchangeECDH.handleResponse: the exchange is confirmed, so the
+                // server's own delegate learns that security is established.
+                securityManager.keyExchangeResults(true)
             case .keyExchangeKDF:
                 guard completeRequest.count == 3 else {
                     respond(to: .keyExchangeKDF, with: .invalidOperand)
@@ -537,6 +543,8 @@ public class ACControlPointDataHandler: SegmentationHandler, ControlPoint {
             case .noRecordsFound:
                 return (.failure(.commandFailed("no records found")), completion)
             case .invalidKeyExchangeConfirmationCode:
+                // Mirror the server: a failed confirmation discards the unconfirmed shared secret.
+                securityManager.deleteStoredKey()
                 return (.failure(.authenticationFailed), completion)
             case .invalidPublicKey:
                 return (.failure(.commandFailed("invalid public key")), completion)

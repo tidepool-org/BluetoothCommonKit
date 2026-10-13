@@ -11,7 +11,10 @@ import os.log
 
 // MARK: - Support Server Implementation
 public protocol ACDataCharacteristicDelegate: AnyObject {
-    func processRequest(_ request: Data, for resourceHandle: ResourceHandle)
+    /// Handles a decrypted request to a protected resource. The returned code becomes the ATT response to
+    /// the AC Data In write, so a server can refuse a request (e.g. Read Not Permitted, Write Not Permitted,
+    /// Invalid Attribute Value Length) the same way it would on the plain characteristic.
+    func processRequest(_ request: Data, for resourceHandle: ResourceHandle) -> CBATTError.Code
 }
 
 public class ACDataCharacteristic: WritableCharacteristic, SegmentationHandler {
@@ -60,8 +63,8 @@ public class ACDataCharacteristic: WritableCharacteristic, SegmentationHandler {
                 log.debug("request %{public}@", request.toHexString())
                 
                 let resourceHandle: ResourceHandle = request[request.startIndex...].to(UInt16.self)
-                
-                delegate?.processRequest(request.dropFirst(2), for: resourceHandle)
+
+                return delegate?.processRequest(request.dropFirst(2), for: resourceHandle) ?? .unlikelyError
             case .failure(let error):
                 guard error != .incorrectSecurityConfiguration else {
                     return .incorrectSecurityConfigurationCode
