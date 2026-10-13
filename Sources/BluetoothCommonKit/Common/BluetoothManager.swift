@@ -125,6 +125,9 @@ public class BluetoothManager: NSObject {
     
     private(set) var discoveredPeripherals: [CBPeripheral] = []
     
+    /// Isolated to `managerQueue`. A rescan requested while Bluetooth was unavailable, run once it powers on.
+    private var rescanPending = false
+
     public var peripheralIdentifier: UUID? {
         get {
             return lockedPeripheralIdentifier.value
@@ -217,6 +220,7 @@ public class BluetoothManager: NSObject {
 
         centralManagerQueue.sync {
             stopScanning()
+            rescanPending = false
 
             if let peripheral = peripheral {
                 centralManager.cancelPeripheralConnection(peripheral)
@@ -242,6 +246,7 @@ public class BluetoothManager: NSObject {
     /// Cancels any active connection and starts a fresh scan. Unlike `prepareForNewPeripheral()`
     /// this bypasses the `retrievePeripherals(withIdentifiers:)` path that would
     /// otherwise reconnect to a cached `CBPeripheral` without firing discovery.
+    /// Requested while Bluetooth is unavailable, the scan runs once it powers on.
     public func rescanForPeripheral() {
         dispatchPrecondition(condition: .notOnQueue(centralManagerQueue))
         log.debug("%{public}@", #function)
@@ -251,7 +256,10 @@ public class BluetoothManager: NSObject {
             if let peripheral, peripheral.state != .disconnected {
                 centralManager.cancelPeripheralConnection(peripheral)
             }
-            guard centralManager.state == .poweredOn else { return }
+            guard centralManager.state == .poweredOn else {
+                rescanPending = true
+                return
+            }
             scanForPeripherals()
         }
     }
@@ -354,6 +362,12 @@ extension BluetoothManager: CBCentralManagerDelegate {
         switch central.state {
         case .poweredOn:
             centralManagerQueueScanForPeripheral()
+            if rescanPending {
+                rescanPending = false
+                // The known peripheral is reconnected above; one that came back under a new
+                // identifier is only found by a scan.
+                scanForPeripherals()
+            }
         case .poweredOff:
             if let peripheralManager = peripheralManager {
                 delegate?.bluetoothManager(self, peripheralManager: peripheralManager, isReadyWithError: CBError(.peripheralDisconnected))
