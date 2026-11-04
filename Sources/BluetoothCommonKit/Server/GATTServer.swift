@@ -91,7 +91,6 @@ public class GATTServer: NSObject, GATTService {
     }
 
     public func update(_ data: Data?, forUUID: CBUUID, onSubscribedCentrals: [CBCentral]? = nil) {
-        ConsoleOut.shared.logMessage(message: "Response data: \(data!.hexadecimalString)")
         guard let data = data,
               let characteristic = getMutableCharacteristicForUUID(forUUID)
         else {
@@ -104,6 +103,10 @@ public class GATTServer: NSObject, GATTService {
             return
         }
 
+        // Indications are acknowledged by the central, notifications are not; the log tells them apart.
+        let push = characteristic.properties.contains(.indicate) ? "Indicate" : "Notify"
+        let recipients = onSubscribedCentrals.map { Self.describe($0) } ?? "all subscribed centrals"
+        ConsoleOut.shared.logMessage(message: "\(push) \(forUUID) to \(recipients) data: \(data.hexadecimalString)")
         characteristic.value = data
         if peripheralManager.updateValue(data, for: characteristic, onSubscribedCentrals: onSubscribedCentrals) {
             observers?.readyToSend()
@@ -175,7 +178,9 @@ extension GATTServer: CBPeripheralManagerDelegate {
     }
 
     @objc public func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveRead request: CBATTRequest) {
-        if let characteristic = getMutableCharacteristicForUUID(request.characteristic.uuid) {
+        let uuid = request.characteristic.uuid
+        let central = Self.describe([request.central])
+        if let characteristic = getMutableCharacteristicForUUID(uuid) {
             // Respond to the request
             let result = characteristic.onRead().0
             let data = characteristic.onRead().1
@@ -184,39 +189,61 @@ extension GATTServer: CBPeripheralManagerDelegate {
             // to the request
             request.value = data
 
-            ConsoleOut.shared.logMessage(message: "Read_Response data: \(String(describing: request.value?.hexadecimalString))")
+            ConsoleOut.shared.logMessage(message: "Read_Response \(uuid) to central \(central) data: \(String(describing: request.value?.hexadecimalString)) result: \(Self.describe(result))")
 
             peripheralManager.respond(
                 to: request,
                 withResult: result)
+        } else {
+            ConsoleOut.shared.logMessage(message: "Read_Request \(uuid) from central \(central): no characteristic found, not answered")
         }
     }
 
     @objc public func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveWrite requests: [CBATTRequest]) {
         let preCondition:CBATTError.Code = CBATTError.Code.success //preWriteConstrain(characteristics.values.first!) TODO not sure what this was intended to do
         for request in requests {
+            let uuid = request.characteristic.uuid
+            let central = Self.describe([request.central])
+            let payload = String(describing: request.value?.hexadecimalString)
+            // Every refusal is logged with the request it answers, forced ones included.
             guard delegate?.isProcedureAlreadyInProgress() != true else {
+                ConsoleOut.shared.logMessage(message: "Write_Request \(uuid) from central \(central) data: \(payload) result: \(Self.describe(.procedureAlreadyInProgress)) (forced by tester)")
                 peripheralManager.respond(to: request, withResult: .procedureAlreadyInProgress)
                 continue
             }
 
             guard delegate?.isOutOfRange() != true else {
+                ConsoleOut.shared.logMessage(message: "Write_Request \(uuid) from central \(central) data: \(payload) result: \(Self.describe(.outOfRange)) (forced by tester)")
                 peripheralManager.respond(to: request, withResult: .outOfRange)
                 continue
             }
 
-            if let characteristic = getMutableCharacteristicForUUID(request.characteristic.uuid) {
+            if let characteristic = getMutableCharacteristicForUUID(uuid) {
                 // Set the request's value
                 // to the correspondent characteristic
                 if preCondition != CBATTError.Code.success {
+                    ConsoleOut.shared.logMessage(message: "Write_Request \(uuid) from central \(central) data: \(payload) result: \(Self.describe(preCondition))")
                     peripheralManager.respond(to: request, withResult: preCondition)
                 } else {
                     let result = characteristic.onWrite(request.value, fromCentral: request.central)
-                    ConsoleOut.shared.logMessage(message: "Write_Request data: \(String(describing: request.value?.hexadecimalString))")
+                    ConsoleOut.shared.logMessage(message: "Write_Request \(uuid) from central \(central) data: \(payload) result: \(Self.describe(result))")
                     peripheralManager.respond(to: request, withResult: result)
                 }
+            } else {
+                ConsoleOut.shared.logMessage(message: "Write_Request \(uuid) from central \(central) data: \(payload): no characteristic found, not answered")
             }
         }
+    }
+
+    // MARK: - Log text
+
+    private static func describe(_ centrals: [CBCentral]) -> String {
+        centrals.map { $0.identifier.uuidString }.joined(separator: ", ")
+    }
+
+    /// "success" or the ATT error code in hex; the host maps codes to names where it needs them.
+    private static func describe(_ result: CBATTError.Code) -> String {
+        result == .success ? "success" : "ATT error 0x\(String(result.rawValue, radix: 16, uppercase: true))"
     }
 
     @objc public func peripheralManager(
