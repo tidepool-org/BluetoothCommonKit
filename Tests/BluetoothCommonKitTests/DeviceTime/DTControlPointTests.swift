@@ -419,4 +419,23 @@ final class DTControlPointTests: XCTestCase, E2EProtectionDelegate {
             XCTAssertEqual(opcode.procedureID, deviceTimeControlPoint.procedureIDForRequest(request))
         }
     }
+
+    func testOwnerThatIsItsOwnE2EDelegateIsFreed() {
+        final class Owner: E2EProtectionDelegate {
+            let controlPoint = DTControlPointDataHandler()
+            let isE2EProtectionSupported = true
+
+            init() {
+                controlPoint.e2eDelegate = self
+            }
+        }
+
+        weak var owner: Owner?
+        do {
+            let strongOwner = Owner()
+            owner = strongOwner
+            XCTAssertTrue(strongOwner.controlPoint.e2eDelegate === strongOwner)
+        }
+        XCTAssertNil(owner)
+    }
 }
