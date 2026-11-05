@@ -87,7 +87,7 @@ public class DTControlPointCharacteristic: WritableCharacteristic, E2EProtection
 public class DTControlPointDataHandler: ControlPoint, E2EProtection {
     public var e2eCounter: UInt8 = 0
     
-    public var e2eDelegate: (any E2EProtectionDelegate)?
+    public weak var e2eDelegate: (any E2EProtectionDelegate)?
 
     private let log = OSLog(category: "DTControlPoint")
 
