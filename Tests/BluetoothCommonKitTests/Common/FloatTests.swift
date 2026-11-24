@@ -29,6 +29,39 @@ class FloatTests: XCTestCase {
         XCTAssertEqual(Int.max.toFloat(initialExponent: 50), Data(UInt32(0x3f0e12e1)))
         XCTAssertEqual(Int.max.toFloat(initialExponent: -50), Data(UInt32(0xdb0e12e1)))
     }
+
+    func testToFloatAvoidsSpecialValueMantissas() {
+        // Exponent 0 with these mantissas would be read as +INF, NaN, NRes, RFU, -INF; encode as x10 one decade up
+        XCTAssertEqual(Int(8388606).float, Data(UInt32(0x010ccccc)))
+        XCTAssertEqual(Int(8388607).float, Data(UInt32(0x010ccccc)))
+        XCTAssertEqual(Int(-8388606).float, Data(UInt32(0x01f33334)))
+        XCTAssertEqual(Int(-8388607).float, Data(UInt32(0x01f33334)))
+        XCTAssertEqual(Int(-8388608).float, Data(UInt32(0x01f33334)))
+
+        // Neighbours just outside the band encode directly
+        XCTAssertEqual(Int(8388605).float, Data(UInt32(0x007ffffd)))
+        XCTAssertEqual(Int(-8388605).float, Data(UInt32(0x00800003)))
+
+        // Values that only reach a special-value mantissa after normalization
+        XCTAssertEqual(Int(83886070).toFloat(initialExponent: -1), Data(UInt32(0x010ccccc)))
+        XCTAssertEqual(Int(-83886060).toFloat(initialExponent: -1), Data(UInt32(0x01f33334)))
+        XCTAssertEqual(Double(8388606.5).float, Data(UInt32(0x010ccccc)))
+        XCTAssertEqual(Double(-8388606.5).float, Data(UInt32(0x01f33334)))
+
+        // The same mantissas are ordinary values at any other exponent
+        XCTAssertEqual(Int(83886070).float, Data(UInt32(0x017fffff)))
+        XCTAssertEqual(Int(-83886060).float, Data(UInt32(0x01800002)))
+        XCTAssertEqual(Int(8388607).toFloat(initialExponent: -1), Data(UInt32(0xff7fffff)))
+        XCTAssertEqual(Int(-8388608).toFloat(initialExponent: -1), Data(UInt32(0xff800000)))
+
+        // Mantissas that are only special for SFLOAT must not be remapped here
+        XCTAssertEqual(Int(-2046).float, Data(UInt32(0x00fff802)))
+        XCTAssertEqual(Int(-2047).float, Data(UInt32(0x00fff801)))
+
+        // The remapped encodings decode to the truncated neighbour, never to a special value
+        XCTAssertEqual(Data(UInt32(0x010ccccc)).floatToDouble(), 8388600)
+        XCTAssertEqual(Data(UInt32(0x01f33334)).floatToDouble(), -8388600)
+    }
     
     func testFloatingPointToFLoat() {
         // other cases

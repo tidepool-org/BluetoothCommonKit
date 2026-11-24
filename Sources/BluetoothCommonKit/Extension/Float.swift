@@ -28,43 +28,34 @@ public extension FixedWidthInteger {
         let maxPositiveValue = FloatSpecialValue.maxValuePositive * multiplier
         let maxNegativeValue = FloatSpecialValue.maxValueNegative * multiplier
 
-        switch self {
-        case _ where maxPositiveValue.isLess(than: Double(self)):
+        if maxPositiveValue.isLess(than: Double(self)) {
             return Data(FloatSpecialValue.infinityPostive.rawValue)
-        case _ where (8388607 * multiplier).isEqual(to: Double(self)):
-            // 0x007fffff is a reserved value. 8388607 becomes 838860e1
-            return Data(FLOAT(0x010ccccc))
-        case _ where (8388606 * multiplier).isEqual(to: Double(self)):
-            // 0x007ffffe is a reserved value. 8388606 becomes 838860e1
-            return Data(FLOAT(0x010ccccc))
-        case _ where (-2046 * multiplier).isEqual(to: Double(self)):
-            // 0x0802 is a reserved value. -8388606 becomes -838860e1
-            return Data(FLOAT(0x01f33334))
-        case _ where (-2047 * multiplier).isEqual(to: Double(self)):
-            // 0x00800001 is a reserved value. -8388607 becomes -838860e1
-            return Data(FLOAT(0x01f33334))
-        case _ where (-8388608 * multiplier).isEqual(to: Double(self)):
-            // 0x00800000 is a reserved value. -8388608 becomes -838860e1
-            return Data(FLOAT(0x01f33334))
-        case _ where Double(self).isLess(than: maxNegativeValue):
-            return Data(FloatSpecialValue.infinityNegative.rawValue)
-        default:
-            var exponent = initialExponent
-            var value = self
-            while (value > 8388607 || value < -8388608) {
-                value /= 10
-                exponent += 1
-            }
-
-            if exponent < 0 {
-                // exponent is signed
-                exponent += 256
-            }
-
-            var data = Data(FLOAT(value & 0x00ffffff))
-            data[3] = UInt8(exponent)
-            return data
         }
+        if Double(self).isLess(than: maxNegativeValue) {
+            return Data(FloatSpecialValue.infinityNegative.rawValue)
+        }
+
+        var exponent = initialExponent
+        var value = self
+        while (value > 8388607 || value < -8388608) {
+            value /= 10
+            exponent += 1
+        }
+
+        // Exponent 0 with mantissa 0x7ffffe...0x800002 collides with the special values; step up one decade
+        if exponent == 0, value >= 8388606 || value <= -8388606 {
+            value /= 10
+            exponent = 1
+        }
+
+        if exponent < 0 {
+            // exponent is signed
+            exponent += 256
+        }
+
+        var data = Data(FLOAT(value & 0x00ffffff))
+        data[3] = UInt8(exponent)
+        return data
     }
 }
 
